@@ -1,4 +1,4 @@
-gamp ncurses MPEG audio decoder, version 1.0.0
+gamp ncurses MPEG audio decoder, version 1.0.1
 
 grub <wburdick@cs.umn.edu> 1999-2001
 
@@ -48,7 +48,7 @@ sajber backend.
  decompressed both mpg123 and gamp in the same place you should be able to
  do the following:
 
-	cp gamp-1.0.0/controldata.h gamp-1.0.0/audio.h mpg123-0.59r/jukebox/
+	cp gamp-1.0.1/controldata.h gamp-1.0.1/audio.h mpg123-0.59r/jukebox/
 
 now you can enter the mpg123 directory
 
@@ -115,15 +115,6 @@ be creative!
 You can use this program by simply typing 'gamp'. There are several
 command line arguments which are documented in the COMMANDS file included
 with this archive, the gamp(1) man page, and via 'gamp -h'.
-
-one additional note: the backend players have a tendency to send messages
-to stderr as 'warnings' when they play. in my experience, this is often
-unwanted and can screw up the display, so i normally run gamp (from
-bash) like this:
-
-	gamp [options] [files] 2> /dev/null
-
-to redirect any errors to /dev/null where you dont have to see them.
 
 4. Feedback
 

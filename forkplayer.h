@@ -42,6 +42,7 @@ int doUpdate;
 int curState;
 int msend[2];
 int mreceive[2];
+int merr[2];
 AudioInfo info;
 int backendNext;
 

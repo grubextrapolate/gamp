@@ -1,5 +1,5 @@
 /*
- * gamp.c v1.0.0
+ * gamp.c v1.0.1
  * by grub <grub@extrapolation.net>
  *
  * ncurses based command line mp3 player. has a directory browser

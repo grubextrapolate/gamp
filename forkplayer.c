@@ -33,6 +33,7 @@
 
 #define MSGIN         mreceive[0]
 #define MSGOUT        msend[1]
+#define MSGERR        merr[1]
 
 #ifdef EX__MAX
 # define FORK_ERROR     EX__MAX + 1
@@ -60,14 +61,22 @@ void forkIt() {
 
 #if !defined(OS_Solaris) && !defined(OS_SunOS)
    if(socketpair(AF_UNIX, SOCK_STREAM, 0, msend) < 0)
-      die("socketpair");
+      die("forkIt: socketpair msend");
    if(socketpair(AF_UNIX, SOCK_STREAM, 0, mreceive) < 0)
-      die("socketpair");
+      die("forkIt: socketpair mreceive");
+# if !defined(DEBUG)
+   if(socketpair(AF_UNIX, SOCK_STREAM, 0, merr) < 0)
+      die("forkIt: socketpair merr");
+# endif
 #else
    if (pipe(msend) < 0)
-      die("pipe");
+      die("forkIt: pipe msend");
    if(pipe(mreceive) < 0)
-      die("pipe");
+      die("forkIt: pipe mreceive");
+# if !defined(DEBUG)
+   if(pipe(merr) < 0)
+      die("forkIt: pipe merr");
+# endif
 #endif
 
    if((fork_pid = fork()) == 0) {
@@ -80,6 +89,13 @@ void forkIt() {
 
       close(mreceive[0]);
       close(mreceive[1]);
+
+#if !defined(DEBUG)
+      dup2(merr[1], STDERR_FILENO);
+
+      close(merr[0]);
+      close(merr[1]);
+#endif
 
       execlp(configuration.player.player,
              configuration.player.player,
@@ -97,6 +113,10 @@ void forkIt() {
    }
    close(msend[0]);
    close(mreceive[1]);
+
+#if !defined(DEBUG)
+   close(merr[1]);
+#endif
 
    if(doUpdate)
       update();
@@ -192,7 +212,7 @@ void parse_msg(PControlMsg msg) {
          updateSongTime(msg->data);
          break;
       case MSG_AUDIOFAILURE:
-         die("Audiofailure");
+         die("parse_msg: Audiofailure");
          break;
       case MSG_POSITION:
 
@@ -221,7 +241,7 @@ void parse_msg(PControlMsg msg) {
          break;
       case MSG_PRIORITY:
          if(msg->data == FAILURE)
-            die(
+            die("parse_msg: "
                "Attempt to change priority on the player "
                "failed. To change scheduling policy you "
                "need have superuser priviliges or have the "
@@ -326,7 +346,8 @@ void childDied(int dontNotify) {
       doUpdate = TRUE;
 
       if(!dontNotify)
-         die("Execution of the player failed. Make sure "
+         die("childDied: "
+             "Execution of the player failed. Make sure "
              "you have specified the correct path and "
              "that the permissions are correctly set.\n");
    }
@@ -621,13 +642,13 @@ void playerPlay(ITEM *sng) {
          hdr.msg_controllen = sizeof(struct m_cmsghdr);
 
          if((ret = sendmsg(MSGOUT, &hdr, 0)) < 0)
-            die("sendmsg: %d", ret);
+            die("playerPlay: sendmsg: %d", ret);
 #else
          msg.type = MSG_SONG;
          msg.data = 0;
          send_msg(&msg);
          if(ioctl(MSGOUT, I_SENDFD, fd) < 0)
-            die("ioctl(I_SENDFD)");
+            die("playerPlay: ioctl(I_SENDFD)");
 #endif
          close(fd);
       }

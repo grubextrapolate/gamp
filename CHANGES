@@ -1,5 +1,9 @@
 CHANGES:
 
+   v1.0.1:
+   -fixed to grab stderr from backend so that it doesnt distort display
+   -better error messages in forkplayer.c
+
    v1.0.0:
    -complete rewrite as pure frontend. gamp now requires a sajber jukebox
     compatible backend player, such as mpg123, amp, or sajberplay

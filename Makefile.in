@@ -1,4 +1,4 @@
-# Makefile  - gamp  audio mpeg player v1.0.0
+# Makefile  - gamp  audio mpeg player v1.0.1
 # russ burdick 1999-2001
 
 #DEBUG = -DDEBUG -g
