@@ -164,12 +164,10 @@ int confirm(char *prompt, int def) {
       wnoutrefresh(listwin);
       if (helpwin != NULL) wnoutrefresh(helpwin);
    } else if (func == PLAYER) {
-      touchwin(mainwin);
       if (helpwin != NULL) touchwin(helpwin);
       if (infowin != NULL) touchwin(infowin);
       if (miniwin != NULL) touchwin(miniwin);
       refresh();
-      wnoutrefresh(mainwin);
       if (helpwin != NULL) wnoutrefresh(helpwin);
       if (infowin != NULL) wnoutrefresh(infowin);
       if (miniwin != NULL) wnoutrefresh(miniwin);

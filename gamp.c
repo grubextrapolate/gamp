@@ -28,8 +28,9 @@
 WINDOW *dirwin = NULL; /* direcory list window (in editor) */
 WINDOW *listwin = NULL; /* playlist window (in editor) */
 
+WINDOW *volwin = NULL;
+
 WINDOW *titlewin = NULL; /* song time/title window (in player) */
-WINDOW *mainwin = NULL; /* main window (in player) */
 WINDOW *progwin = NULL; /* progress window (in player) */
 
 WINDOW *infowin = NULL; /* popup info window */
@@ -61,6 +62,9 @@ char *sdir = NULL;
 
 /* player configuration */
 CONFIGURATION configuration;
+
+int volleft;
+int volright;
 
 /*
  * initialize the given list with the contents of the specified directory.
@@ -117,10 +121,6 @@ void finishPlayer() {
       delwin(titlewin);
       titlewin = NULL;
    }
-   if (mainwin != NULL) {
-      delwin(mainwin);
-      mainwin = NULL;
-   }
    if (progwin != NULL) {
       delwin(progwin);
       progwin = NULL;
@@ -133,53 +133,29 @@ void finishPlayer() {
  */
 void initPlayer() {
 
-   char tmpstr[50];
-
-   /* create windows */
-   if (titlewin == NULL) {
-      titlewin = newwin(1, 0, 0, 0);
-      if (titlewin == NULL) die("initPlayer: newwin failure\n");
-      sprintf(tmpstr, "gamp version %d.%d.%d", MAJOR, MINOR, PATCH);
-      mvwaddstr(titlewin, 0, 2, tmpstr);
-   } else {
-      touchwin(titlewin);
-   }
-
-/*   if (mainwin == NULL) {
-      mainwin = newwin(LINES - 5, 0, 1, 0);
-      if (mainwin == NULL) die("initPlayer: newwin failure\n");
-      box(mainwin, 0, 0);
-
-      if (configuration.displaySpectrum == FALSE)
-         showLogo(mainwin, LINES, COLS);
-   } else {
-      touchwin(mainwin);
-   }*/
+/*   char tmpstr[50];*/
 
    if (progwin == NULL) {
-      progwin = newwin(4, 0, LINES - 4, 0);
+      progwin = newwin(4, 0, 0, 0);
       if (progwin == NULL) die("initPlayer: newwin failure\n");
       box(progwin, 0, 0);
 
       if (curState & playState)
-/*         showFilename(titlewin, curSong);*/
          showFilename(progwin, curSong);
 
       if (configuration.repeatMode == repeatOne)
-/*         mvwaddstr(titlewin, 1, 1, "r");*/
          mvwaddstr(progwin, 1, 1, "r");
       else if (configuration.repeatMode == repeatAll)
-/*         mvwaddstr(titlewin, 1, 1, "R");*/
          mvwaddstr(progwin, 1, 1, "R");
 
+/*      sprintf(tmpstr, "gamp version %d.%d.%d", MAJOR, MINOR, PATCH);
+      mvwaddstr(progwin, 0, 2, tmpstr);*/
    } else {
       touchwin(progwin);
    }
 
    /* refresh screen */
    refresh();
-   wnoutrefresh(titlewin);
-   wnoutrefresh(mainwin);
    wnoutrefresh(progwin);
    doupdate();
 
@@ -370,10 +346,16 @@ int playPlaylist() {
    return(func);
 }
 
+void initVolume() {
+
+
+}
+
 void volUp(CONFIGURATION *config) {
 
    if ((config->volup != NULL) && (config->volup[0] != '\0')) {
       system(config->volup);
+      initVolume();
    }
 }
 
@@ -381,6 +363,7 @@ void volDown(CONFIGURATION *config) {
 
    if ((config->voldown != NULL) && (config->voldown[0] != '\0')) {
       system(config->voldown);
+      initVolume();
    }
 }
 
@@ -448,12 +431,12 @@ void initEditor() {
 
    int dirwin_height, listwin_height;  /* height of our windows */
 
-   dirwin_height = (LINES-5)/2;  /* window sizes */
-   listwin_height = LINES - dirwin_height - 5;
+   dirwin_height = 11;  /* window sizes */
+   listwin_height = LINES - dirwin_height - 4;
 
    /* create windows */
    if (dirwin == NULL) {
-      dirwin = newwin(dirwin_height, 0, 1, 0);
+      dirwin = newwin(dirwin_height, 0, 4, 0);
       if (dirwin == NULL) die("initEditor: newwin failure\n");
       box(dirwin, 0, 0);
    } else {
@@ -461,7 +444,7 @@ void initEditor() {
    }
 
    if (listwin == NULL) {
-      listwin = newwin(listwin_height, 0, dirwin_height+1, 0);
+      listwin = newwin(listwin_height, 0, dirwin_height+4, 0);
       if (listwin == NULL) die("initEditor: newwin failure\n");
       box(listwin, 0, 0);
    } else {
@@ -1619,10 +1602,8 @@ void toggleHelpWin() {
 
       if (func == PLAYER) {
          delwin(helpwin);
-         touchwin(mainwin);
          helpwin = NULL;
          refresh();
-         wnoutrefresh(mainwin);
          if (infowin != NULL) {
             touchwin(infowin);
             wnoutrefresh(infowin);
@@ -1755,25 +1736,22 @@ void updateInfoWin() {
  */
 void toggleInfoWin() {
    int x_offset = 0, y_offset = 0;
-   int infoWidth = 50, infoHeight = 12;
+   int infoWidth = 0, infoHeight = 11;
 
    if (func == PLAYER) {
 
       if (infowin == NULL) { /* no info showing currently, so display it */
 
-         infoWidth = 0;
-         infoHeight = (LINES - 5)/2;
-         if ((LINES - 5)%2 != 0) infoHeight++;
-         y_offset = LINES - infoHeight - 4;
+         infoWidth = COLS - 4;
+         y_offset = 4;
+         x_offset = 4;
 
-/*         x_offset = (mainwin->_maxx - infoWidth) / 2;
-         y_offset = (mainwin->_maxy - infoHeight) / 2;
-         x_offset += mainwin->_begx + 1;
-         y_offset += mainwin->_begy + 1;
+         volwin = newwin(infoHeight, 4, y_offset, 0);
+         if (volwin == NULL) die("toggleInfoWin: newwin failure\n");
+         box(volwin, 0, 0);
+         initVolume();
+         wnoutrefresh(volwin);
 
-         if (x_offset < 0) x_offset = 0;
-         if (y_offset < 0) y_offset = 0;
-*/
          infowin = newwin(infoHeight, infoWidth, y_offset, x_offset);
          if (infowin == NULL) die("toggleInfoWin: newwin failure\n");
          updateInfoWin();
@@ -1781,11 +1759,9 @@ void toggleInfoWin() {
       } else { /* info being displayed, so destroy it */
 
          delwin(infowin);
-         touchwin(mainwin);
          infowin = NULL;
 
          refresh();
-         wnoutrefresh(mainwin);
          if (helpwin != NULL) {
             touchwin(helpwin);
             wnoutrefresh(helpwin);
@@ -1840,51 +1816,39 @@ void toggleMiniWin() {
    int miniWidth = 60, miniHeight = 7;
    ITEM *ret = NULL;
 
-/*   if (playlist != NULL) {*/
-      if (func == PLAYER) {
-         if (miniwin == NULL) { /* no mini-list showing currently, so display it */
+   if (func == PLAYER) {
+      if (miniwin == NULL) { /* no mini-list showing currently, so display it */
 
-            miniWidth = 0;
-            miniHeight = (LINES - 5)/2;
-            y_offset = 1;
+         miniWidth = 0;
+         miniHeight = LINES - 15;
+         y_offset = LINES - miniHeight;
 
-/*            x_offset = (mainwin->_maxx - miniWidth) / 2;
-            y_offset = (mainwin->_maxy - miniHeight) / 2;
-            x_offset += mainwin->_begx + 1;
-            y_offset += mainwin->_begy;
+         miniwin = newwin(miniHeight, miniWidth, y_offset, x_offset);
+         if (miniwin == NULL) die("toggleMiniWin: newwin failure\n");
 
-            if (x_offset < 0) x_offset = 0;
-            if (y_offset < 0) y_offset = 0;*/
+         if (curSong != NULL)
+            ret = curSong;
+         else if (playlist != NULL)
+            ret = playlist->head;
 
-            miniwin = newwin(miniHeight, miniWidth, y_offset, x_offset);
-            if (miniwin == NULL) die("toggleMiniWin: newwin failure\n");
+         updateMiniWin(ret);
 
-            if (curSong != NULL)
-               ret = curSong;
-            else if (playlist != NULL)
-               ret = playlist->head;
+      } else { /* miniwin being displayed, so destroy it */
 
-            updateMiniWin(ret);
+         delwin(miniwin);
+         miniwin = NULL;
 
-         } else { /* miniwin being displayed, so destroy it */
-
-            delwin(miniwin);
-            touchwin(mainwin);
-            miniwin = NULL;
-
-            refresh();
-            wnoutrefresh(mainwin);
-            if (helpwin != NULL) {
-               touchwin(helpwin);
-               wnoutrefresh(helpwin);
-            }
-            if (infowin != NULL) {
-               touchwin(infowin);
-               wnoutrefresh(infowin);
-            }
+         refresh();
+         if (helpwin != NULL) {
+            touchwin(helpwin);
+            wnoutrefresh(helpwin);
+         }
+         if (infowin != NULL) {
+            touchwin(infowin);
+            wnoutrefresh(infowin);
          }
       }
-/*   }*/
+   }
 
    doupdate();
 }
