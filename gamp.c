@@ -1392,7 +1392,7 @@ void toggleHelpWin() {
  */
 void updateHelpWin() {
    char buf[MAX_STRLEN];
-   int i = 0, j = 5;
+   int i = 0, j = 0;
 
    wmove(helpwin->win, 0, 0);
    wclrtobot(helpwin->win);
@@ -1400,63 +1400,108 @@ void updateHelpWin() {
 
    if (func == PLAYER) {
       i = 6;
+      j = 5;
       strcpy(buf, "p/space: play                   s: stop");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+/* XXXXXXXXXXXXXXXX */
+mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
+mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
+mvwchgat(helpwin->win, i, j+2, 5, A_BOLD, COLOR_CYAN, NULL);
+i++;
       strcpy(buf, "f: start & end ffwd             r: start & end rew");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
+mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
+i++;
       strcpy(buf, "n/right: next                   v/left: prev");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
+mvwchgat(helpwin->win, i, j+2, 5, A_BOLD, COLOR_CYAN, NULL);
+mvwchgat(helpwin->win, i, j+34, 4, A_BOLD, COLOR_CYAN, NULL);
+mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
+i++;
       strcpy(buf, "a: pause                        q: quit");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
+mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
+i++;
       strcpy(buf, "l: goto playlist                h: toggle help");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
+mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
+i++;
       strcpy(buf, "t: toggle time mode             R: change repeat mode");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
+mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
+i++;
       strcpy(buf, "+: increase volume              -: decrease volume");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
+mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
+i++;
 
    } else { /* PLAYLIST */
       i = 1;
+      j = 5;
       strcpy(buf, "a: add all files                A: add recursively");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+mvwchgat(helpwin->win, i, j, 5, A_BOLD, COLOR_CYAN, NULL);
+i++;
       strcpy(buf, "left: remove/cd ..              right: add/chdir/play");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "down: move down                 up: move up");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "space: page down                -: page up");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "u: move song up                 d: move song down");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "t: move to top of list          b: move to bottom of list");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "T: move marked to top           B: move marked to bottom");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "z: add marked                   Z: recursively add marked");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "D: delete marked                e: replace current item");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "i: insert after current         I: insert marked after current");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "M: mark all                     U: unmark all");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "r: randomize list               o: sort list");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "c: clear playlist               C: crop playlist to marked");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "v: reverse list                 V: invert marked");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "l: load playlist                s: save playlist");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "q: quit                         p: goto player");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "h: toggle this help             tab: switch windows");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
       strcpy(buf, "m: toggle mark                  P: start playing");
-      mvwaddstr(helpwin->win, i++, j, buf);
+      mvwaddstr(helpwin->win, i, j, buf);
+i++;
 
    }
    wnoutrefresh(helpwin->win);
-
    doupdate();
 }
 
@@ -1477,6 +1522,7 @@ void updateInfoWin() {
 
       strcpy(buf, "length:                size:");
       mvwaddstr(infowin->win, 1, 3, buf);
+/* mvwchgat(infowin->win, 1, 3, 5, A_BOLD, COLOR_CYAN, NULL);*/
 
       strcpy(buf, "bitrate:               frequency:");
       mvwaddstr(infowin->win, 2, 3, buf);
@@ -1939,6 +1985,22 @@ int main(int argc, char **argv) {
    forkIt(); /* fork the player */
 
    initscr(); /* ncurses init stuff */
+#ifdef USE_COLOR
+   start_color();
+   if (has_colors()) {
+     configuration.useColor = TRUE;
+     init_pair(COLOR_BLACK, COLOR_BLACK, COLOR_BLACK);
+/*     color_set(0, NULL);*/
+     init_pair(COLOR_GREEN, COLOR_GREEN, COLOR_BLACK);
+     init_pair(COLOR_RED, COLOR_RED, COLOR_BLACK);
+     init_pair(COLOR_CYAN, COLOR_CYAN, COLOR_BLACK);
+     init_pair(COLOR_WHITE, COLOR_WHITE, COLOR_BLACK);
+     init_pair(COLOR_MAGENTA, COLOR_MAGENTA, COLOR_BLACK);
+     init_pair(COLOR_BLUE, COLOR_BLUE, COLOR_BLACK);
+     init_pair(COLOR_YELLOW, COLOR_YELLOW, COLOR_BLACK);
+
+   }
+#endif
    savetty();
    curs_set(0); /* invisible cursor */
    cbreak();
@@ -1954,6 +2016,14 @@ int main(int argc, char **argv) {
    pthread_detach(msg_thread);
 
    gampInit();
+   if (configuration.useColor) {
+     wcolor_set(progwin->win, COLOR_WHITE, NULL);
+     wcolor_set(listwin->win, COLOR_WHITE, NULL);
+     wcolor_set(infowin->win, COLOR_WHITE, NULL);
+     wcolor_set(volwin->win, COLOR_WHITE, NULL);
+     wcolor_set(helpwin->win, COLOR_WHITE, NULL);
+     wcolor_set(dirwin->win, COLOR_WHITE, NULL);
+   }
 
    /* keep going until we quit */
    while(func != QUIT) {

@@ -118,6 +118,7 @@ typedef struct CONFIGURATION {
    int stepTimeout; /* delay (in milliseconds) between ffwd/rew steps */
    char *volup;
    char *voldown;
+   int useColor;
 
 } CONFIGURATION;
 
