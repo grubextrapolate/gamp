@@ -1,6 +1,6 @@
-gamp ncurses MPEG audio decoder, version 0.2.2
+gamp ncurses MPEG audio decoder, version 0.2.3
 
-grub <wburdick@cs.umn.edu> 1999,2000
+grub <wburdick@cs.umn.edu> 1999,2000,2001
 borys <borys@bill3.ncats.net> 1999,2000
 based on amp by Tomislav Uzelac  1996,1997
 
@@ -89,3 +89,39 @@ in consequence of you using this freeware program.
 
 Russ Burdick
 <wburdick@cs.umn.edu>
+
+6. Non-Linux OS Help
+
+here's some user feedback that i got for compilation on openbsd and
+hpux. hope it helps!
+
+From: Liam Bedford
+Subject: gamp and OpenBSD 2.7
+
+You might be interested to know that I got it to compile and work :)
+
+I had to make a few changes:
+It didn't set the CC = line correctly, so I changed it to CC = cc
+It picks it up as OS_OpenBSD, so I changed that to OS_BSD.
+It looks for <linux/soundcard.h>, where <soundcard.h> will suffice.
+Instead of linking with -lncurses -lpthread
+-lcurses -lc_r -lossaudio
+seems to work. I think that was all I changed, I'll have another look...
+oh, and it needs gnu make to build.
+
+Thanks, mpg123 was causing me heartache..
+
+
+From: "Ragbirsingh, Donald"
+Subject: gamp
+
+Hey - good work
+
+I compiled gamp 0.2.2 on a HP 712/80 running HPUX 11.0 and used gcc for UX
+to compile it - however I had to do some modfications to trick "configure"
+to create the makefile, also I had to copy the audioIO_HPUX to audioIO.h, 
+
+but it does work.
+
+nice.
+

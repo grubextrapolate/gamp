@@ -50,7 +50,7 @@ struct SIDE_INFO {
 
 /* global stuff 
 */
-
+#define IS_SIZE 700 /* nov27/2000 Victor Zandy <zandy@cs.wisc.edu> */
 extern FILE *in_file,*out_file;
 
 extern int scalefac_l[2][2][22];
@@ -59,7 +59,7 @@ extern int t_b8_l[2][3][22];
 extern int t_b8_s[2][3][13];
 extern short t_bitrate[2][3][15];
 
-extern int is[2][578];
+extern int is[2][IS_SIZE]; /* nov27/2000 Victor Zandy <zandy@cs.wisc.edu> */
 extern float xr[2][32][18];
 
 extern int *t_l,*t_s;
@@ -93,7 +93,7 @@ FILE *in_file,*out_file;
 int scalefac_l[2][2][22];
 int scalefac_s[2][2][13][3];
 
-int is[2][578];
+int is[2][IS_SIZE]; /* nov27/2000 Victor Zandy <zandy@cs.wisc.edu> */
 float xr[2][32][18];
 
 int bs[4] = {0, 384, 1152, 1152};

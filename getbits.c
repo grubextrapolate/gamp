@@ -9,6 +9,7 @@
 #include "amp.h"
 #include "audio.h"
 #include "formats.h"
+#include <assert.h> /* nov27/2000 Victor Zandy <zandy@cs.wisc.edu> */
 
 #define	GETBITS
 #include "getbits.h"
@@ -160,6 +161,11 @@ int nch;
 		for (ch=0;ch<nch;ch++) {
 			info->part2_3_length[gr][ch]=_getbits(12);
 			info->big_values[gr][ch]=_getbits(9);
+                        /* nov27/2000 Victor Zandy <zandy@cs.wisc.edu> */
+                        if ((info->big_values[gr][ch] << 1) >= IS_SIZE) {
+                                fprintf(stderr, "is array overflow\n");
+                                assert(0);
+                        }
 			info->global_gain[gr][ch]=_getbits(8);
 			if (header->ID) info->scalefac_compress[gr][ch]=_getbits(4);
 			else info->scalefac_compress[gr][ch]=_getbits(9);

@@ -110,15 +110,19 @@ char *getName(char *filename) {
         if ((strcmp(ptrtag->songname, "") != 0) &&
             (strcmp(ptrtag->artist, "") != 0))
             sprintf(tmp, "%s - %s", ptrtag->artist, ptrtag->songname);
-        else
+        else { /* nov27/2000 Victor Zandy <zandy@cs.wisc.edu> */
             strncpy(tmp, filename, strlen(filename) - 4);
-
-    } else
+            tmp[strlen(filename) - 4] = '\0';
+        }
+    } else { /* nov27/2000 Victor Zandy <zandy@cs.wisc.edu> */
         strncpy(tmp, filename, strlen(filename) - 4);
+        tmp[strlen(filename) - 4] = '\0';
+    }
 
     return tmp;
 #else
     strncpy(tmp, filename, strlen(filename) - 4);
+    tmp[strlen(filename) - 4] = '\0';
     return tmp;
 #endif
 

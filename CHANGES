@@ -1,5 +1,11 @@
 CHANGES:
 
+   v0.2.3:
+   -incorperated a patch from Victor Zandy <zandy@cs.wisc.edu> to fix a
+    couple unterminated strings and an array overflow (thanks victor).
+   -added info on compilation for non-linux operating systems to the
+    README (thanks liam and donald)
+
    v0.2.2:
    -fixed a bug where a mutex was left set so play would not work after a
     play error or end of playlist was reached

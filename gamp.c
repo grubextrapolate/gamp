@@ -1,4 +1,4 @@
-/* gamp.c v0.2.0
+/* gamp.c v0.2.3
    by grub <grub@extrapolation.net> and borys <borys@bill3.ncats.net>
    based on amp by Tomislav Uzelac <tuzelac@rasip.fer.hr>
 
