@@ -9,33 +9,25 @@ q	quit
 p	play
 space	play
 h	toggle help window
-i	toggle info window
 f	start/stop ffwd
 r	start/stop rew
 n	next
 RIGHT	next
 v	prev
 LEFT	prev
-m	toggle mini-list window
-u	toggle mini-list window
 a	pause
-+	increase volume (disabled)
--	decrease volume (disabled)
-d	toggle visuals* (disabled)
-t	toggle between elapsed/remaining time*
-R	cycle through repeat mode (none, one, all)*
++	increase volume
+-	decrease volume
+t	toggle between elapsed/remaining time
+R	cycle through repeat mode (none, one, all)
 s	stop
 l	switch to playlist
->	switch to playlist
-<	switch to playlist
 
 in playlist editor:
 -------------------
 
 P	start playing playlist (while you continue to edit it!)
 p	goto player
->	goto player
-<	goto player
 q	quit
 s	save playlist
 l	load playlist
@@ -62,7 +54,7 @@ d	move song down in playlist
 m	mark song/directory
 M	mark all
 U	unmark all
-I	invert marked
+V	invert marked
 D	delete marked
 C	crop to marked
 z	add marked
@@ -73,6 +65,8 @@ t	move song to top of playlist
 b	move song to bottom of playlist
 T	move marked songs to top of playlist
 M	move marked songs to end of playlist
+i	insert after active song in playlist
+I	insert marked after active song in playlist
 
 from command line:
 ------------------
