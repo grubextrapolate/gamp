@@ -1,4 +1,4 @@
-/* gamp.c v0.1.7
+/* gamp.c v0.1.8
    by grub <grub@toast.net> and borys <borys@bill3.ncats.net>
 
    ncurses based command line interface to amp. has a directory browser
@@ -259,12 +259,13 @@ void init_dirlist(char *pwd) {
 }
 
 void strtrunc(char *str, int length) {
-    char format[6];
+/*    char format[6]; */
     int len = strlen(str);
     int i;
   
-    sprintf(format, "%%-%ds", length);
-    sprintf(tmpstr, format, str);
+/*    sprintf(format, "%%-%ds", length);
+    sprintf(tmpstr, format, str); */
+    sprintf(tmpstr, "%-*s", length, str);
 
     /* convert long files like:
      * long-filename.ext -> long-fi...ext
@@ -364,10 +365,6 @@ int play_playlist(int argc, char *argv[]) {
     /* move cursor to its start position */
     move(1,1);
 
-    nodelay(titlewin, TRUE);
-    nodelay(mainwin, TRUE);
-    nodelay(helpwin, TRUE);
-
     while(stop == CONT) {
 
         ch = wgetch(titlewin);
@@ -387,16 +384,41 @@ int play_playlist(int argc, char *argv[]) {
                 if (current >= playlist.cur)
                    current = 0;
                 play = PLAY;
+                nodelay(titlewin, TRUE);
+                nodelay(mainwin, TRUE);
+                nodelay(helpwin, TRUE);
                 break;
 
             case 'f': /* ffwd */
-                if (play == PLAY)
-                   cnt += 25;
+                if (play == PLAY) {
+                   processHeader(&header,cnt);
+                   layer3_frame(&header,cnt);
+                   processHeader(&header,cnt);
+                   layer3_frame(&header,cnt);
+                   processHeader(&header,cnt);
+                   layer3_frame(&header,cnt);
+                   processHeader(&header,cnt);
+                   layer3_frame(&header,cnt);
+                   processHeader(&header,cnt);
+                   layer3_frame(&header,cnt);
+                   cnt += 5;
+                }
                 break;
 
             case 'r': /* rew */
-                if (play == PLAY)
-                   cnt -= 25;
+                if (play == PLAY) {
+/*                   processHeader(&header,cnt);
+                   layer3_frame(&header,cnt);
+                   processHeader(&header,cnt);
+                   layer3_frame(&header,cnt);
+                   processHeader(&header,cnt);
+                   layer3_frame(&header,cnt);
+                   processHeader(&header,cnt);
+                   layer3_frame(&header,cnt);
+                   processHeader(&header,cnt);
+                   layer3_frame(&header,cnt); */
+                   cnt -= 5;
+                }
                 break;
 
             case 'n': /* next */
@@ -426,6 +448,17 @@ int play_playlist(int argc, char *argv[]) {
                     play = PLAY;
                 else if (play == PLAY)
                     play = PAUSE; /* pause if playing */
+                nodelay(titlewin, FALSE);
+                nodelay(mainwin, FALSE);
+                nodelay(helpwin, FALSE);
+                break;
+
+            case '+': /* increase volume */
+                audioSetVolume(100);
+                break;
+
+            case '-': /* decrease volume */
+                audioSetVolume(0);
                 break;
 
             case 's': /* stop */
@@ -443,6 +476,9 @@ int play_playlist(int argc, char *argv[]) {
                     wnoutrefresh(mainwin);
                     wnoutrefresh(helpwin);
                     doupdate();
+                    nodelay(titlewin, FALSE);
+                    nodelay(mainwin, FALSE);
+                    nodelay(helpwin, FALSE);
                 }
                 else if (play == STOP) {
                     if (current >= playlist.cur)
@@ -459,6 +495,9 @@ int play_playlist(int argc, char *argv[]) {
                     last_loop = FALSE;
                     first_loop = TRUE;
                     play = STOP;
+                    nodelay(titlewin, FALSE);
+                    nodelay(mainwin, FALSE);
+                    nodelay(helpwin, FALSE);
                 }
                 stop = GOTO_EDITOR;
                 break;

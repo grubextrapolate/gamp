@@ -1,124 +1,69 @@
-amp MPEG audio decoder readme file (version 0.7.3)
-(C) Tomislav Uzelac  1996,1997
+gamp ncurses MPEG audio decoder, version 0.1.8
 
-amp is free software and can be _used_ freely by anyone. If you want to
-do anything else with it, be sure to check the Legal section of this
-document for legal issues.
-
-THERE IS NO WARRANTY FOR THIS PROGRAM. Please check out the Legal section
-of this document.
-
-1. Introduction
-2. Installation
-3. Running
-4. Feedback
-5. Contributing
-6. Legal
-
+grub <wburdick@cs.umn.edu> 1999
+borys <borys@bill3.ncats.net> 1999
+based on amp by Tomislav Uzelac  1996,1997
 
 1. Introduction
 
-amp (Audio Mpeg Player) is an MPEG audio decoder which I originally started 
-putting together as a side project of the MPEG hardware design project at 
-FER/Zagreb - just to confirm my knowledge of the standard. It works with
-both MPEG1 and MPEG2 audio streams (except for the multichannel extensions
-defined in MPEG2), layer3 only for now. 
+gamp is Graphical AMP. it is an ncurses front end built onto Tomislav
+Uzelac's amp mp3 player and designed to be a true alternative to x windows
+mp3 players. as such it incorperates a playlist browser, play, pause,
+stop, prev, next options. work is in progress on a text-based frequency
+analyzer, fast forward, and rewind functions. more ideas as they come. at
+present this program has been tested only under linux on both the redhat
+(5.2) and debian distributions. please feel free to drop us a line with
+any suggestions, comments, or bug reports.
 
-There is a gui for amp, written in Tcl/Tk by Edouard Lafargue. It is 
-available at the amp home site ftp://ftp.rasip.fer.hr
-
-The following people contributed their time and knowledge to amp:
-
-   Karl Anders Oygard
-   Ilkka Karvinen
-   Lutz Vieweg
-   Dan Nelson
-   Edouard Lafargue
-   Andrew Richards
-   George Colouris
-   Dmitry Boldyrev (Mac port)
-   Andy Lo A Foe (BeOS port)
-
-
-
-amp home location is
-	ftp://ftp.rasip.fer.hr/pub/mpeg/amp-0.7.3.tgz
-
-and the mailing list: send 'HELP' in the body of the message to:
-	multimedia@rasip.fer.hr
-
-If you want to find out more about MPEG, best places to start are
-	http://www.mpeg.org
-	http://www.mpeg2.de 
-
+at present there isnt really a webpage for gamp but the current version
+can be found at http://www.cs.umn.edu/~wburdick/gamp/
 
 2. Installation
 
-- edit the makefile to suit your system. (FreeBSD users should
-  choose the Linux options).
+ok, this works for me so try it yourself and see what happens. let me know
+if you have any trouble.
 
-make
-(as root) mv amp  usr/local/bin      (or wherever)   
-amp
+	./configure
+	make
 
-If you had version 0.7.0 installed, don't forget to remove the
-table files - they are not needed anymore.
+at this point you can copy the gamp file to wherever you like. may need to
+be root to do this. for example,
+
+	mv gamp  usr/local/bin
 
 3. Running:
 
-'amp' gives you usage & options. If your computer is on the slower
-side, direct playback might not work, but you can decode it
-to .wav or raw pcm and play it later.
+to use the program just type 'gamp'. you can pass it a single command line
+argument (the start directory) if you so desire. by default it will start
+up in the current directory.
 
+	gamp
+or
+	gamp /mp3
 
 4. Feedback
 
 Send in your makefiles, opinions, bugreports, fixes; anything related to this
-program. You can also send me unlimited amounts of money, sugar, milk, etc.
+program. You can also send me unlimited amounts of money, pepsi, whatever.
 
-If you find any mpeg audio files that amp has trouble decoding, please tell
-me about this via e-mail <tuzelac@rasip.fer.hr>.
-
-
-5. Contributing
-
-Please contribute to amp. If you want to know what is going on in amp 
-development, you can join the developers mailing list
-
-	mpeg_audio_developers@rasip.fer.hr
-
-There are certain debugging facilities that I made in amp, but are disabled
-in the current release (they are neither nice nor user-friendly). If anyone
-enhances them (they are in dump.c) to the point that they're actually
-usable I'll be happy to include the changes in the release. I think this
-kind of debug output would be very useful to people studying these audio
-algorithms.
-
-
-6. Legal
+5. Legal
 
 This software can be used freely for any purpose. It can be distributed
 freely, as long as it is not sold commercially without permission from
-Tomislav Uzelac <tuzelac@rasip.fer.hr>. However, including this software
+Russ Burdick <wburdick@cs.umn.edu>. However, including this software
 on CD_ROMs containing other free software is explicitly permitted even 
 when a modest distribution fee is charged for the CD, as long as this
 software is not a primary selling argument for the CD.
 
-Building derived versions of this software is permitted, as long as they
-are not sold commercially without permission from Tomislav Uzelac 
-<tuzelac@rasip.fer.hr>. Any derived versions must be clearly marked as
-such, and must be called by a name other than amp. Any derived versions
-must retain this copyright notice.
-
 /* This license is itself copied from Tatu Ylonen's ssh package. It does 
  * not mention being copyrighted itself :)
+ * --- also stolen from tom's readme for my use - grub.
  */
 
-THERE IS NO WARRANTY FOR THIS PROGRAM - whatsoever. You use it entirely
-at your risk, and neither Tomislav Uzelac, nor FER will be liable for
-any damages that might occur to your computer, software, etc. in
-consequence of you using this freeware program.
+THERE IS NO WARRANTY FOR THIS PROGRAM - whatsoever. You use it entirely at
+your risk, and neither Russ Burdick, nor Tomislav Uzelac, nor FER will be
+liable for any damages that might occur to your computer, software, etc.
+in consequence of you using this freeware program.
 
-
-Tomislav Uzelac
-<tuzelac@rasip.fer.hr>
+Russ Burdick
+<wburdick@cs.umn.edu>

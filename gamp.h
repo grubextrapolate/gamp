@@ -12,8 +12,8 @@ typedef struct {
 } STRLIST;
 
 void grow_list(STRLIST *list) {
-    char **tmpfiles = (char **)malloc(sizeof(char **) * list->max * 2);
-    char **tmpdirs = (char **)malloc(sizeof(char **) * list->max * 2);
+    char **tmpfiles = (char **)malloc(sizeof(char *) * list->max * 2);
+    char **tmpdirs = (char **)malloc(sizeof(char *) * list->max * 2);
     memcpy(tmpfiles, list->files, list->cur*sizeof(char *));
     memcpy(tmpdirs, list->dirs, list->cur*sizeof(char *));
     free(list->files);
@@ -89,8 +89,8 @@ void randomize_list(STRLIST *list) {
 
     int i, num_items, j, k;
 
-    char **tmpfiles = (char **)malloc(sizeof(char **) * list->max);
-    char **tmpdirs = (char **)malloc(sizeof(char **) * list->max);
+    char **tmpfiles = (char **)malloc(sizeof(char *) * list->max);
+    char **tmpdirs = (char **)malloc(sizeof(char *) * list->max);
 
     num_items = list->cur;
     i = 0;
@@ -133,8 +133,8 @@ void free_list(STRLIST *list) {
 
 void init_list(STRLIST *list, int num) {
     if(list) {
-        list->files = (char **)malloc(sizeof(char **) * num);
-        list->dirs = (char **)malloc(sizeof(char **) * num);
+        list->files = (char **)malloc(sizeof(char *) * num);
+        list->dirs = (char **)malloc(sizeof(char *) * num);
         list->cur = 0;
         list->max = num;
     }
