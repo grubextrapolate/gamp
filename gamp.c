@@ -1,5 +1,5 @@
 /*
- * gamp.c v1.0.1
+ * gamp.c v1.0.2
  * by grub <grub@extrapolation.net>
  *
  * ncurses based command line mp3 player. has a directory browser
@@ -39,6 +39,15 @@ WINDOW *miniwin = NULL; /* popup mini-list window in player*/
 /* playlist and current directory list */
 ITEMLIST *playlist = NULL;
 ITEMLIST *dirlist = NULL;
+
+/*
+ * list of directory tree traversal so <-- can act as 'back' button in
+ * playlist editor and work for multiple directory levels. browsing with
+ * --> adds to tail of this list, browsing <-- will remove tail item.
+ * this just means that the last item selected when browsing forward
+ * will be selected when we go back. great help for large directories.
+ */
+ITEMLIST *treelist = NULL;
 
 /* currenly playing song, or null if stopped */
 ITEM *curSong = NULL;
@@ -425,6 +434,7 @@ int editPlaylist() {
    int i = 0;        /* loop counter */
    ITEM *itm = NULL; /* loop pointer */
    char *filename = NULL; /* load/save filename */
+   char *cptr = NULL;
 
    initEditor();
 
@@ -441,8 +451,19 @@ int editPlaylist() {
       }
    }
    if (dirlist != NULL) {
-      dw_first = dirlist->head;
-      dw_cur = dirlist->head;
+      if (treelist != NULL) {
+         dw_cur = seekItemByPath(treelist->tail, dirlist);
+         if (dw_cur != NULL) {
+            dw_first = seekItemByPath(treelist->tail->prev, dirlist);
+            dw_pos = treelist->tail->prev->length;
+         } else {
+            dw_first = dirlist->head;
+            dw_cur = dirlist->head;
+         }
+      } else {
+         dw_first = dirlist->head;
+         dw_cur = dirlist->head;
+      }
    }
 
    /* draw boxes in windows and fill them with something */
@@ -486,19 +507,20 @@ int editPlaylist() {
          case 'l': /* load playlist */
             filename = getFilename("load filename (ESC aborts):");
             if (filename != NULL) {
-               readM3u(filename);
+               if (readM3u(filename) == 0) {
 
-               if ((lw_first == NULL) && (playlist != NULL))
-                  lw_first = playlist->head;
-               if ((lw_cur == NULL) && (playlist != NULL))
-                  lw_cur = playlist->head;
+                  if ((lw_first == NULL) && (playlist != NULL))
+                     lw_first = playlist->head;
+                  if ((lw_cur == NULL) && (playlist != NULL))
+                     lw_cur = playlist->head;
 
-               if (win == 0) {
-                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                          NULL);
-               } else {
-                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                          lw_cur);
+                  if (win == 0) {
+                     fillwin(listwin, lw_first, playlist,
+                             listwin->_maxy - 2, NULL);
+                  } else {
+                     fillwin(listwin, lw_first, playlist,
+                             listwin->_maxy - 2, lw_cur);
+                  }
                }
             }
             break;
@@ -708,12 +730,33 @@ int editPlaylist() {
 
          case KEY_LEFT: /* remove item (only if in playlist win) */
             if (win == 0) {
-               initDirlist("..", &dirlist);
+               if ((treelist != NULL) && (treelist->tail != NULL)) {
+                  strcpy(cwd, treelist->tail->path);
+                  cptr = rindex(cwd, '/');
+                  *(cptr+1) = '\0';
+                  initDirlist(cwd, &dirlist);
+               } else {
+                  initDirlist("..", &dirlist);
+               }
                sortList(dirlist);
                dw_pos = 0;
                if (dirlist != NULL) {
-                  dw_first = dirlist->head;
-                  dw_cur = dirlist->head;
+                  if (treelist != NULL) {
+                     dw_cur = seekItemByPath(treelist->tail, dirlist);
+                     if (dw_cur != NULL) {
+                        popItem(&treelist);
+                        dw_first = seekItemByPath(treelist->tail,
+                                                  dirlist);
+                        dw_pos = treelist->tail->length;
+                        popItem(&treelist);
+                     } else {
+                        dw_first = dirlist->head;
+                        dw_cur = dirlist->head;
+                     }
+                  } else {
+                     dw_first = dirlist->head;
+                     dw_cur = dirlist->head;
+                  }
                }
                fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
                        dw_cur);
@@ -755,6 +798,9 @@ int editPlaylist() {
                   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
                           NULL);
                } else {
+                  addItem(newItem(dw_first->path, NULL), &treelist);
+                  treelist->tail->length = dw_pos;
+                  addItem(newItem(dw_cur->path, NULL), &treelist);
                   initDirlist(dw_cur->name, &dirlist);
                   sortList(dirlist);
                   dw_pos = 0;
@@ -780,12 +826,14 @@ int editPlaylist() {
                fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
                        dw_cur);
             } else {
-               win = 1;
-               pos = &lw_pos;
-               fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
-                       NULL);
-               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                       lw_cur);
+               if (lw_first != NULL) {
+                  win = 1;
+                  pos = &lw_pos;
+                  fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                          NULL);
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                          lw_cur);
+               }
             }
             break;
 
@@ -1192,6 +1240,12 @@ void infoReset(AudioInfo *info) {
  * displays the filename for the indicated song
  */
 void updatePlaying(ITEM *sng) {
+   char *term_type = NULL;
+
+   term_type = getenv("TERM");
+   if ((term_type != NULL) && (strcmp(term_type, "xterm") == 0))
+      fprintf(stderr, "\033]0;%s\007", curSong->name);
+
    debug("updatePlaying:sng->name=%s\n", sng->name);
    showFilename(titlewin, sng);
 }

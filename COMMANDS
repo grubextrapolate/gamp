@@ -47,7 +47,8 @@ space	scroll down by one page
 UP	move up one line
 DOWN	move down one line
 LEFT	remove item from playlist if in playlist window
-	cd .. if in directory window
+	go back to previous directory (or .. if no previous directory)
+           if in directory window
 RIGHT	play current song if in playlist window
 	if in directory window and song, add to playlist
 	if in directory window and directory, change to this directory

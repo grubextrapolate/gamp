@@ -232,6 +232,18 @@ void deleteItem(ITEM *item, ITEMLIST **list) {
 }
 
 /*
+ * popItem will delete the tail item from a list.
+ */
+void popItem(ITEMLIST **list) {
+
+   ITEM *itm = NULL;
+   if (*list != NULL) {
+      itm = (*list)->tail;
+      deleteItem(itm, list);
+   }
+}
+
+/*
  * swaps two items on a given list. assumes that the items are both on the
  * list.
  */
@@ -415,6 +427,7 @@ ITEMLIST *randomizeList(ITEMLIST **list) {
       while ((*list)->num > 0) {
 
          /* number from 0 to (*list)->num - 1 */
+         srand(clock());
          j = (int) (rand() % (*list)->num);
          item = seekItem(j, *list);
          moveItem(item, list, &newlist);
@@ -475,4 +488,20 @@ void freeItem(ITEM *item) {
       if (item->id3 != NULL) free(item->id3); /* free id3 (if any) */
       if (item->info != NULL) free(item->info); /* free info (if any) */
    }
+}
+
+/*
+ * seek (and return) the item by path
+ */
+ITEM *seekItemByPath(ITEM *itm, ITEMLIST *list) {
+
+   ITEM *ret = NULL;
+
+   if ((list != NULL) && (itm != NULL)) {
+      ret = list->head;
+      while((ret != NULL) && (strcmp(ret->path, itm->path) != 0))
+         ret = ret->next;
+   }
+      
+   return(ret);
 }

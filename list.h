@@ -11,6 +11,7 @@ extern void addOrdered(ITEM *, ITEMLIST **);
 extern void addRecursive(ITEMLIST *, ITEMLIST **);
 extern void removeItem(ITEM *, ITEMLIST **);
 extern void deleteItem(ITEM *, ITEMLIST **);
+extern void popItem(ITEMLIST **);
 extern void swapItems(ITEMLIST *, ITEM *, ITEM *);
 extern int compItems(ITEM *, ITEM *);
 extern int isdir(ITEM *);
@@ -22,5 +23,6 @@ extern ITEMLIST *randomizeList(ITEMLIST **);
 extern void freeList(ITEMLIST **);
 extern void initList(ITEMLIST **);
 extern void freeItem(ITEM *);
+extern ITEM *seekItemByPath(ITEM *, ITEMLIST *);
 
 #endif /* LIST_H */

@@ -1,5 +1,17 @@
 CHANGES:
 
+   v1.02:
+   -patch to have gamp show current song name in the title bar of an
+    xterm when gamp is running from an xterm. thanks to Bert Crowder
+    <bertoid@aracnet.com> for the patch.
+   -use srand to get better playlist randomization. thanks to Roy
+    Hallquist <rac@speakeasy.net>
+   -improved playlist browsing so that left arrow in the directory
+    listing behaves more like a 'back' button (ie: it remembers your
+    position in the previous listing). thanks to Simon Bichler
+    <520019320344-0001@t-online.de> for the suggestion and an initial
+    implimentation.
+
    v1.0.1:
    -fixed to grab stderr from backend so that it doesnt distort display
    -better error messages in forkplayer.c

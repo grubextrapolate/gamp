@@ -1,6 +1,6 @@
-gamp ncurses MPEG audio decoder, version 1.0.1
+gamp ncurses MPEG audio decoder, version 1.0.2
 
-grub <wburdick@cs.umn.edu> 1999-2001
+Russ Burdick <wburdick@cs.umn.edu> 1999-2001
 
 1. Introduction
 
@@ -48,7 +48,7 @@ sajber backend.
  decompressed both mpg123 and gamp in the same place you should be able to
  do the following:
 
-	cp gamp-1.0.1/controldata.h gamp-1.0.1/audio.h mpg123-0.59r/jukebox/
+	cp gamp-1.0.2/controldata.h gamp-1.0.2/audio.h mpg123-0.59r/jukebox/
 
 now you can enter the mpg123 directory
 
