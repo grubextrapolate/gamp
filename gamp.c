@@ -113,7 +113,7 @@ void initDirlist(char *pwd, ITEMLIST **list) {
  */
 void finishPlayer() {
 
-   if (titlewin != NULL) {
+/*   if (titlewin != NULL) {
       delwin(titlewin);
       titlewin = NULL;
    }
@@ -124,7 +124,7 @@ void finishPlayer() {
    if (progwin != NULL) {
       delwin(progwin);
       progwin = NULL;
-   }
+   }*/
 }
 
 /*
@@ -133,29 +133,48 @@ void finishPlayer() {
  */
 void initPlayer() {
 
+   char tmpstr[50];
+
    /* create windows */
-   titlewin = newwin(3, 0, 0, 0);
-   if (titlewin == NULL) die("initPlayer: newwin failure\n");
-   mainwin = newwin(LINES - 6, 0, 3, 0);
-   if (mainwin == NULL) die("initPlayer: newwin failure\n");
-   progwin = newwin(3, 0, LINES - 3, 0);
-   if (progwin == NULL) die("initPlayer: newwin failure\n");
+   if (titlewin == NULL) {
+      titlewin = newwin(1, 0, 0, 0);
+      if (titlewin == NULL) die("initPlayer: newwin failure\n");
+      sprintf(tmpstr, "gamp version %d.%d.%d", MAJOR, MINOR, PATCH);
+      mvwaddstr(titlewin, 0, 2, tmpstr);
+   } else {
+      touchwin(titlewin);
+   }
 
-   /* draw boxes in windows and fill them with something */
-   box(titlewin, 0, 0);
-   box(mainwin, 0, 0);
-   box(progwin, 0, 0);
+/*   if (mainwin == NULL) {
+      mainwin = newwin(LINES - 5, 0, 1, 0);
+      if (mainwin == NULL) die("initPlayer: newwin failure\n");
+      box(mainwin, 0, 0);
 
-   if (curState & playState)
-      showFilename(titlewin, curSong);
+      if (configuration.displaySpectrum == FALSE)
+         showLogo(mainwin, LINES, COLS);
+   } else {
+      touchwin(mainwin);
+   }*/
 
-   if (configuration.repeatMode == repeatOne)
-      mvwaddstr(titlewin, 1, 1, "r");
-   else if (configuration.repeatMode == repeatAll)
-      mvwaddstr(titlewin, 1, 1, "R");
+   if (progwin == NULL) {
+      progwin = newwin(4, 0, LINES - 4, 0);
+      if (progwin == NULL) die("initPlayer: newwin failure\n");
+      box(progwin, 0, 0);
 
-   if (configuration.displaySpectrum == FALSE)
-      showLogo(mainwin, LINES, COLS);
+      if (curState & playState)
+/*         showFilename(titlewin, curSong);*/
+         showFilename(progwin, curSong);
+
+      if (configuration.repeatMode == repeatOne)
+/*         mvwaddstr(titlewin, 1, 1, "r");*/
+         mvwaddstr(progwin, 1, 1, "r");
+      else if (configuration.repeatMode == repeatAll)
+/*         mvwaddstr(titlewin, 1, 1, "R");*/
+         mvwaddstr(progwin, 1, 1, "R");
+
+   } else {
+      touchwin(progwin);
+   }
 
    /* refresh screen */
    refresh();
@@ -183,9 +202,13 @@ int playPlaylist() {
    if (infowin != NULL) {
       toggleInfoWin();
       toggleInfoWin();
+   } else {
+      toggleInfoWin();
    }
    if (miniwin != NULL) {
       toggleMiniWin();
+      toggleMiniWin();
+   } else {
       toggleMiniWin();
    }
 
@@ -290,15 +313,19 @@ int playPlaylist() {
          case 'R': /* cycle repeat mode through none/one/all */
             if (configuration.repeatMode == repeatNone) {
                configuration.repeatMode = repeatOne;
-               mvwaddstr(titlewin, 1, 1, "r");
+/*               mvwaddstr(titlewin, 1, 1, "r");*/
+               mvwaddstr(progwin, 1, 1, "r");
             } else if (configuration.repeatMode == repeatOne) {
                configuration.repeatMode = repeatAll;
-               mvwaddstr(titlewin, 1, 1, "R");
+/*               mvwaddstr(titlewin, 1, 1, "R");*/
+               mvwaddstr(progwin, 1, 1, "R");
             } else if (configuration.repeatMode == repeatAll) {
                configuration.repeatMode = repeatNone;
-               mvwaddstr(titlewin, 1, 1, " ");
+/*               mvwaddstr(titlewin, 1, 1, " ");*/
+               mvwaddstr(progwin, 1, 1, " ");
             }
-            wnoutrefresh(titlewin);
+/*            wnoutrefresh(titlewin);*/
+            wnoutrefresh(progwin);
             doupdate();
             if (configuration.dirty == 0) configuration.dirty = 1;
             break;
@@ -402,14 +429,14 @@ void fillwin(WINDOW *win, ITEM *first, ITEMLIST *list, int num,
  */
 void finishEditor() {
 
-   if (dirwin != NULL) {
+/*   if (dirwin != NULL) {
       delwin(dirwin);
       dirwin = NULL;
    }
    if (listwin != NULL) {
       delwin(listwin);
       listwin = NULL;
-   }
+   }*/
 }
 
 /*
@@ -421,18 +448,25 @@ void initEditor() {
 
    int dirwin_height, listwin_height;  /* height of our windows */
 
-   dirwin_height = LINES/2;  /* window sizes */
-   listwin_height = LINES - dirwin_height;
+   dirwin_height = (LINES-5)/2;  /* window sizes */
+   listwin_height = LINES - dirwin_height - 5;
 
    /* create windows */
-   dirwin = newwin(dirwin_height, 0, 0, 0);
-   if (dirwin == NULL) die("initEditor: newwin failure\n");
-   listwin = newwin(listwin_height, 0, dirwin_height, 0);
-   if (listwin == NULL) die("initEditor: newwin failure\n");
+   if (dirwin == NULL) {
+      dirwin = newwin(dirwin_height, 0, 1, 0);
+      if (dirwin == NULL) die("initEditor: newwin failure\n");
+      box(dirwin, 0, 0);
+   } else {
+      touchwin(dirwin);
+   }
 
-   /* draw boxes in windows and fill them with something */
-   box(dirwin, 0, 0);
-   box(listwin, 0, 0);
+   if (listwin == NULL) {
+      listwin = newwin(listwin_height, 0, dirwin_height+1, 0);
+      if (listwin == NULL) die("initEditor: newwin failure\n");
+      box(listwin, 0, 0);
+   } else {
+      touchwin(listwin);
+   }
 
    /* refresh screen */
    refresh();
@@ -1358,7 +1392,8 @@ void updateSongTime(int cur_frame) {
    int minutes = 0;
    int seconds = 0;
 
-   if ((titlewin != NULL) && (curSong != NULL)) {
+/*   if ((titlewin != NULL) && (curSong != NULL)) {*/
+   if ((progwin != NULL) && (curSong != NULL)) {
       seconds = (cur_frame*32)/1225;
  
       /* if the player doesnt send info then we cant do remaining time */
@@ -1391,8 +1426,10 @@ void updateSongTime(int cur_frame) {
             sprintf(tmpstr, "[%3d:%02d] ", minutes, seconds);
          }
       }
-      mvwaddstr(titlewin, 1, 2, tmpstr);
-      wnoutrefresh(titlewin);
+/*      mvwaddstr(titlewin, 1, 2, tmpstr);
+      wnoutrefresh(titlewin);*/
+      mvwaddstr(progwin, 1, 2, tmpstr);
+      wnoutrefresh(progwin);
       doupdate();
    }
 }
@@ -1404,7 +1441,7 @@ void updateSongPosition(double pos) {
    int i, j;
    char tmpstr[MAX_STRLEN];
 
-   if (func == PLAYER) {
+   if (progwin != NULL) {
       j = (progwin->_maxx - 1)*pos;
       for (i = 0; i < (progwin->_maxx - 1); i++) {
          if (i < j)
@@ -1415,7 +1452,7 @@ void updateSongPosition(double pos) {
             tmpstr[i] = '-';
       }
       tmpstr[progwin->_maxx - 1] = '\0';
-      mvwaddstr(progwin, 1, 1, tmpstr);
+      mvwaddstr(progwin, 2, 1, tmpstr);
       wnoutrefresh(progwin);
       doupdate();
    }
@@ -1473,11 +1510,15 @@ void updatePlaying(ITEM *sng) {
    char *term_type = NULL;
 
    term_type = getenv("TERM");
-   if ((term_type != NULL) && (strcmp(term_type, "xterm") == 0))
+   if ((term_type != NULL) && ((strcmp(term_type, "xterm") == 0) ||
+                               (strcmp(term_type, "rxvt") == 0) ||
+                               (strcmp(term_type, "aterm") == 0) ||
+                               (strcmp(term_type, "eterm") == 0)))
       fprintf(stderr, "\033]0;%s\007", curSong->name);
 
    debug("updatePlaying:sng->name=%s\n", sng->name);
-   showFilename(titlewin, sng);
+/*   showFilename(titlewin, sng);*/
+   showFilename(progwin, sng);
 }
 
 /*
@@ -1487,11 +1528,11 @@ void updateStopped() {
    debug("updateStopped: clearing progwin and titlewin\n");
 
    if (func == PLAYER) {
-      wclear(titlewin);
-      box(titlewin, 0, 0);
+/*      wclear(titlewin);
+      box(titlewin, 0, 0);*/
       wclear(progwin);
       box(progwin, 0, 0);
-      wnoutrefresh(titlewin);
+/*      wnoutrefresh(titlewin);*/
       wnoutrefresh(progwin);
       updateInfoWin();
       doupdate();
@@ -1628,18 +1669,18 @@ void updateInfoWin() {
       mvwaddstr(infowin, 3, 3, buf);
 
       strcpy(buf, "song: ");
-      mvwaddstr(infowin, 5, 3, buf);
+      mvwaddstr(infowin, 4, 3, buf);
       strcpy(buf, "artist: ");
-      mvwaddstr(infowin, 6, 3, buf);
+      mvwaddstr(infowin, 5, 3, buf);
       strcpy(buf, "album: ");
-      mvwaddstr(infowin, 7, 3, buf);
+      mvwaddstr(infowin, 6, 3, buf);
 
       strcpy(buf, "year:                  genre:");
-      mvwaddstr(infowin, 8, 3, buf);
+      mvwaddstr(infowin, 7, 3, buf);
       strcpy(buf, "comment: ");
-      mvwaddstr(infowin, 9, 3, buf);
+      mvwaddstr(infowin, 8, 3, buf);
       strcpy(buf, "track: ");
-      mvwaddstr(infowin, 10, 3, buf);
+      mvwaddstr(infowin, 9, 3, buf);
 
       if ((curSong != NULL) && (curState & playState)) {
 
@@ -1664,28 +1705,28 @@ void updateInfoWin() {
 
          if (curSong->id3 != NULL) {
             strcpy(buf, curSong->id3->songname);
-            mvwaddstr(infowin, 5, 9, buf);
+            mvwaddstr(infowin, 4, 9, buf);
 
             strcpy(buf, curSong->id3->artist);
-            mvwaddstr(infowin, 6, 11, buf);
+            mvwaddstr(infowin, 5, 11, buf);
 
             strcpy(buf, curSong->id3->album);
-            mvwaddstr(infowin, 7, 10, buf);
+            mvwaddstr(infowin, 6, 10, buf);
 
             strcpy(buf, curSong->id3->year);
-            mvwaddstr(infowin, 8, 9, buf);
+            mvwaddstr(infowin, 7, 9, buf);
 
             if (curSong->id3->genre < genre_count) {
                strcpy(buf, genre_table[curSong->id3->genre]);
-               mvwaddstr(infowin, 8, 33, buf);
+               mvwaddstr(infowin, 7, 33, buf);
             }
 
             strcpy(buf, curSong->id3->comment);
-            mvwaddstr(infowin, 9, 12, buf);
+            mvwaddstr(infowin, 8, 12, buf);
 
             if (curSong->id3->track != 0) {
                sprintf(buf, "%d", curSong->id3->track);
-               mvwaddstr(infowin, 10, 10, buf);
+               mvwaddstr(infowin, 9, 10, buf);
             }
 
          }
@@ -1720,17 +1761,21 @@ void toggleInfoWin() {
 
       if (infowin == NULL) { /* no info showing currently, so display it */
 
-         x_offset = (mainwin->_maxx - infoWidth) / 2;
+         infoWidth = 0;
+         infoHeight = (LINES - 5)/2;
+         if ((LINES - 5)%2 != 0) infoHeight++;
+         y_offset = LINES - infoHeight - 4;
+
+/*         x_offset = (mainwin->_maxx - infoWidth) / 2;
          y_offset = (mainwin->_maxy - infoHeight) / 2;
          x_offset += mainwin->_begx + 1;
          y_offset += mainwin->_begy + 1;
 
          if (x_offset < 0) x_offset = 0;
          if (y_offset < 0) y_offset = 0;
-
+*/
          infowin = newwin(infoHeight, infoWidth, y_offset, x_offset);
          if (infowin == NULL) die("toggleInfoWin: newwin failure\n");
-
          updateInfoWin();
 
       } else { /* info being displayed, so destroy it */
@@ -1764,10 +1809,10 @@ void updateMiniWin(ITEM *mw_first) {
 
    if (miniwin != NULL) { /* mini showing currently, so update it */
 
-      if (func == PLAYER) {
-
          wclear(miniwin);
          box(miniwin, 0, 0);
+
+      if ((func == PLAYER) && (playlist != NULL)) {
 
          if (mw_first->prev != NULL) {
             if (mw_first->prev->prev != NULL) {
@@ -1781,9 +1826,9 @@ void updateMiniWin(ITEM *mw_first) {
             fillwin(miniwin, mw_first, playlist, miniwin->_maxy - 2,
                     curSong, NULL, TRUE);
          }
+      }
          wnoutrefresh(miniwin);
          doupdate();
-      }
    }
 }
 
@@ -1795,24 +1840,28 @@ void toggleMiniWin() {
    int miniWidth = 60, miniHeight = 7;
    ITEM *ret = NULL;
 
-   if (playlist != NULL) {
+/*   if (playlist != NULL) {*/
       if (func == PLAYER) {
          if (miniwin == NULL) { /* no mini-list showing currently, so display it */
 
-            x_offset = (mainwin->_maxx - miniWidth) / 2;
+            miniWidth = 0;
+            miniHeight = (LINES - 5)/2;
+            y_offset = 1;
+
+/*            x_offset = (mainwin->_maxx - miniWidth) / 2;
             y_offset = (mainwin->_maxy - miniHeight) / 2;
             x_offset += mainwin->_begx + 1;
             y_offset += mainwin->_begy;
 
             if (x_offset < 0) x_offset = 0;
-            if (y_offset < 0) y_offset = 0;
+            if (y_offset < 0) y_offset = 0;*/
 
             miniwin = newwin(miniHeight, miniWidth, y_offset, x_offset);
             if (miniwin == NULL) die("toggleMiniWin: newwin failure\n");
 
             if (curSong != NULL)
                ret = curSong;
-            else
+            else if (playlist != NULL)
                ret = playlist->head;
 
             updateMiniWin(ret);
@@ -1835,7 +1884,7 @@ void toggleMiniWin() {
             }
          }
       }
-   }
+/*   }*/
 
    doupdate();
 }
@@ -2122,6 +2171,7 @@ int main(int argc, char **argv) {
    forkIt(); /* fork the player */
 
    initscr(); /* ncurses init stuff */
+   curs_set(0); /* invisible cursor */
    cbreak();
    noecho();
    nonl();
@@ -2160,6 +2210,7 @@ int main(int argc, char **argv) {
  * does cleanup, ends ncurses and kills the player
  */
 void cleanup() {
+   curs_set(1); /* set cursor visible */
    signal(SIGINT, SIG_DFL);
    endwin();
    playerKill();
