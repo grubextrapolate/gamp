@@ -1,4 +1,4 @@
-/* gamp.c v0.1.6
+/* gamp.c v0.1.7
    by grub <grub@toast.net> and borys <borys@bill3.ncats.net>
 
    ncurses based command line interface to amp. has a directory browser
@@ -17,12 +17,11 @@
 
    FIX ME:
 
-   -still some problems with the player. once you go back to the playlist
-    and return to the player it is really loud/distorted.
    -playlist randomizer segfaults.
 
    TODO (the big list):
 
+   -edit playlist while playing.
    -ffwd/rew for player
    -documentation (in and out of source).
    -load/save playlists (possibly via -p <filename> switch)
@@ -33,8 +32,13 @@
 
    CHANGES:
 
+   v0.1.7:
+   -working spectrum analyzer
+   -fixed segfault on 'stop' if not playing.
+
    v0.1.6:
    -bugfix and minor cosmetic changes.
+   -added more commands.
    -added help window in playlist editor.
 
    v0.1.5:
@@ -128,6 +132,9 @@ int PAUSE=9;
 int PLAY=10;
 int START=11;
 
+int NUM_BANDS=21;
+int bar_heights[22];
+
 STRLIST dirlist  = { 0, 0, 0, 0 };
 STRLIST playlist = { 0, 0, 0, 0 };
 char cwd[256];
@@ -166,7 +173,9 @@ int inline processHeader(struct AUDIO_HEADER *header, int cnt) {
     return(0);
 }
 
-void statusDisplay(WINDOW *win, struct AUDIO_HEADER *header, int frameNo) {
+void statusDisplay(WINDOW *twin, WINDOW *mwin, int height, int width,
+                   struct AUDIO_HEADER *header, int frameNo) {
+
     int minutes,seconds;
 
     if (!(frameNo%10)) {
@@ -175,9 +184,11 @@ void statusDisplay(WINDOW *win, struct AUDIO_HEADER *header, int frameNo) {
 	seconds=seconds % 60;
 
 	sprintf(tmpstr, " [%2d:%02d]", minutes, seconds);
-        mvwaddstr(win, 1, 1, tmpstr);
+        mvwaddstr(twin, 1, 1, tmpstr);
+        sanalyzer_render_freq(mwin, height, width);
         refresh();
-        wnoutrefresh(win);
+        wnoutrefresh(twin);
+        wnoutrefresh(mwin);
         doupdate();
 
     }
@@ -330,12 +341,6 @@ int play_playlist(int argc, char *argv[]) {
 
     int cnt = 0, err = 0;
 
-    /* premultiply dewindowing tables.  Should go away */
-    premultiply();
-
-    /* init imdct tables */
-    imdct_init();
-
     /* create windows */
     titlewin = newwin(3, 0, 0, 0);
     mainwin = newwin(LINES - 6, 0, 3, 0);
@@ -424,19 +429,25 @@ int play_playlist(int argc, char *argv[]) {
                 break;
 
             case 's': /* stop */
-                fclose(in_file);
-                audioBufferClose();
+                if (play == PLAY) {
+                    fclose(in_file);
+                    audioBufferClose();
 
-                last_loop = FALSE;
-                first_loop = TRUE;
-                play = STOP;
+                    last_loop = FALSE;
+                    first_loop = TRUE;
+                    play = STOP;
 
-                clear_filename(titlewin);
-                refresh();
-                wnoutrefresh(titlewin);
-                wnoutrefresh(mainwin);
-                wnoutrefresh(helpwin);
-                doupdate();
+                    clear_filename(titlewin);
+                    refresh();
+                    wnoutrefresh(titlewin);
+                    wnoutrefresh(mainwin);
+                    wnoutrefresh(helpwin);
+                    doupdate();
+                }
+                else if (play == STOP) {
+                    if (current >= playlist.cur)
+                        current = 0;
+                }
 
                 break;
 
@@ -486,7 +497,8 @@ int play_playlist(int argc, char *argv[]) {
 
             else {
 
-                statusDisplay(titlewin, &header, cnt);
+                statusDisplay(titlewin, mainwin, LINES - 8, COLS - 2,
+                              &header, cnt);
 
                 /* setup the audio when we have the frame info */
                 if (!cnt) {
@@ -713,9 +725,13 @@ int edit_playlist(int argc, char *argv[]) {
 int main(int argc, char *argv[]) {
 
     int stop = GOTO_EDITOR;   /* stopping condition for the program */
+    int i;
 
     char start_dir[150] = "";
  
+    for (i = 0; i <= NUM_BANDS; i++)
+        bar_heights[i] = 0;
+
     if (argc == 2)
         strcat(start_dir, argv[1]);
 
@@ -726,6 +742,12 @@ int main(int argc, char *argv[]) {
     keypad(stdscr, TRUE);
     cbreak();
     noecho();
+
+    /* premultiply dewindowing tables.  Should go away */
+    premultiply();
+
+    /* init imdct tables */
+    imdct_init();
 
     while(stop != QUIT) {
 
