@@ -1,0 +1,164 @@
+.TH GAMP 1 "June 29 2001"
+.SH NAME
+gamp \- ncurses MPEG audio player frontend
+.SH SYNOPSIS
+.B gamp 
+[
+.I options
+]
+[
+.I MPEG audio files or M3U playlists
+]
+.LP
+.SH DESCRIPTION
+.LP
+.B gamp
+is a full-featured frontend to common command line mp3 players. It aims to offer all the features of an X Windows based player in a slim and efficient ncurses based interface. It features a playlist editor with the ability to load and save playlists, sort or randomize playlists, and many other common features. The player has the ability to play, pause, stop, prev, next, ffwd, and rewind songs. The user can switch back and forth between the player and playlist editor while playing.
+.B gamp 
+is has been tested using both mpg123 (compiled with sajber jukebox support) and amp as the backend player, but any player which can be used with the sajber jukebox should work.
+.SH OPTIONS
+The options are:
+.TP
+.BI \-h,\ --help
+display usage information and exit
+.TP
+.BI \-v,\ --version
+display version information and exit
+.TP
+.BI \-p,\ --play 
+after starting and loading files go to the player and begin playing
+.TP
+.BI \-c,\ --config\ filename
+use the specified config file rather than ~/.gamp/gamprc
+.TP
+.BI \-d,\ --dir\ directory
+start gamp in the specified directory
+.TP
+.BI \-l,\ --logo\ filename
+use the specified logo file rather than ~/.gamp/gamp.logo or the logo specified in the config file
+.TP
+.BI \-s,\ --setup
+create the ~/.gamp/ directory and write default config and logo there
+
+.SH player commands
+these are the commands available in the player:
+.TP
+.BI q
+quit
+.TP
+.BI p,\ space
+play
+.TP
+.BI h
+toggle help window
+.TP
+.BI i
+toggle info window
+.TP
+.BI f
+start/stop ffwd
+.TP
+.BI r
+start/stop rew
+.TP
+.BI n,\ right
+next
+.TP
+.BI v,\ left
+prev
+.TP
+.BI m,\ u
+toggle mini-list of upcoming songs
+.TP
+.BI a
+pause
+.TP
+.BI t
+toggle between elapsed/remaining time
+.TP
+.BI R
+cycle through repeat modes (none/one/all)
+.TP
+.BI s
+stop
+.TP
+.BI l,\ >,\ <
+switch to playlist
+
+.SH playlist editor commands
+these are the commands available in the playlist editor:
+.TP
+.BI p,\ <,\ >
+goto player
+.TP
+.BI q
+quit
+.TP
+.BI s
+save playlist
+.TP
+.BI l
+load playlist
+.TP
+.BI h
+toggle help window
+.TP
+.BI c
+clear playlist
+.TP
+.BI a
+add all songs in current directory
+.TP
+.BI A
+add all songs recursively
+.TP
+.BI space
+scroll down one page in current window
+.TP
+.BI -
+scroll up one page in current window
+.TP
+.BI up
+move up one line
+.TP
+.BI down
+move down one line
+.TP
+.BI left
+removes the selected item from the playlist if in the playlist window or moves up one directory from the directory window
+.TP
+.BI right
+plays the current song if in the playlist window, adds the current song if
+a song is selected in the directory window, or changes to the selected
+driectory if a directory is selected in the directory window
+.TP
+.BI tab
+switch between the windows
+.TP
+.BI r
+randomizes playlist
+.TP
+.BI o
+sorts (orders) the playlist
+.TP
+.BI u
+moves song up in plyalist
+.TP
+.BI d
+moves song down in playlist
+
+.SH ENVIRONMENT
+.TP
+No special environment variables.
+.SH AUTHOR
+Russ Burdick <wburdick@cs.umn.edu>, with help and ideas from 
+Trannie Carter (original co-author),
+Victor Zandy (patch),
+Tomislav Uzelac (amp),
+Michael Hipp (mpg123),
+Robert Alto (id3ren),
+Peter Alm, Thomas Nilsson, Olle Hallnas (xmms),
+Joel Lindholm (sajber jukebox)
+.SH BUGS
+please send bug reports to Russ Burdick <wburdick@cs.umn.edu>
+.PP

@@ -1,0 +1,96 @@
+this is a complete list of all the available commands available in gamp.
+items marked with a * will change this value in your player configuration
+and will be saved and restored on your next usage.
+
+in player:
+----------
+
+q	quit
+p	play
+space	play
+h	toggle help window
+i	toggle info window
+f	start/stop ffwd
+r	start/stop rew
+n	next
+RIGHT	next
+v	prev
+LEFT	prev
+m	toggle mini-list window
+u	toggle mini-list window
+a	pause
++	increase volume (disabled)
+-	decrease volume (disabled)
+d	toggle visuals* (disabled)
+t	toggle between elapsed/remaining time*
+R	cycle through repeat mode (none, one, all)*
+s	stop
+l	switch to playlist
+>	switch to playlist
+<	switch to playlist
+
+in playlist editor:
+-------------------
+
+p	goto player
+>	goto player
+<	goto player
+q	quit
+s	save playlist
+l	load playlist
+h	toggle help window
+c	clear playlist
+a	add all files in current directory
+A	add all files recursively
+space	scroll down by one page
+-	scroll up by one page
+UP	move up one line
+DOWN	move down one line
+LEFT	remove item from playlist if in playlist window
+	cd .. if in directory window
+RIGHT	play current song if in playlist window
+	if in directory window and song, add to playlist
+	if in directory window and directory, change to this directory
+TAB	switch between windows
+r	randomize playlist
+o	sort (order) the playlist
+u	move song up in playlist
+d	move song down in playlist
+
+from command line:
+------------------
+
+usage: gamp [options] [mp3/m3u file(s)]
+options: -c, --config filename  load/save config file
+         -l, --logo filename    load this ascii logo
+         -d, --dir dirname      start in dirname
+         -h, --help             display this help info
+         -v, --version          display version
+         -p, --play             start playing on startup
+         -s, --setup            sets up ~/.gamp/
+
+anything else on the command line will be ignored. this is to more easily
+facilitate auto-loading a bunch of mp3s via something like:
+
+	gamp /mp3/*
+
+which will ignore all files in /mp3/ that are neither playlists nor
+mp3s.
+
+some examples of this could be:
+
+        gamp --setup
+	gamp -c sample.config.amp
+	gamp -config sample.config.sajber /mp3/all.m3u
+	gamp -l logos/gamp.logo2 -c /dev/null mp3/*
+	gamp --logo logos/gamp.logo
+	gamp -v
+	gamp --version
+	gamp -h
+	gamp --help
+
+i am considering putting in a '-d dirname' option in order to make gamp
+start up in the specified directory, possibly loading all mp3s it sees
+there. another variation on this could be to have '-D dirname' recursively
+load all files in a specified directory. if you are interested in these
+features, let me know.

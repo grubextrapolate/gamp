@@ -1,573 +1,159 @@
-/* gamp.c v0.2.3
-   by grub <grub@extrapolation.net> and borys <borys@bill3.ncats.net>
-   based on amp by Tomislav Uzelac <tuzelac@rasip.fer.hr>
-
-   ncurses based command line interface to amp. has a directory browser
-   and other fun stuff like those other x based clients, but for the
-   hardcore command line enthusiast.
-
-*/
-
-/* uncomment this to ignore id3 tags */
-/* #define IGNORE_ID3TAGS */
+/*
+ * gamp.c v1.0.0
+ * by grub <grub@extrapolation.net>
+ *
+ * ncurses based command line mp3 player. has a directory browser
+ * and other fun stuff like those other x based clients, but for the
+ * hardcore command line enthusiast.
+ *
+ */
 
 #include "gamp.h"
-#include "gamp-util.h"
-#include "spectrum.h"
+#include "genre.h"
+#include <sys/stat.h>
 
-/* constants from args.c (which we dont call)
-int SHOW_HEADER=FALSE;
-int SHOW_HEADER_DETAIL=FALSE;
-int SHOW_SIDE_INFO=FALSE;
-int SHOW_SIDE_INFO_DETAIL=FALSE;
-int SHOW_MDB=FALSE;
-int SHOW_MDB_DETAIL=FALSE;
-int SHOW_HUFFMAN_ERRORS=FALSE;
-int SHOW_HUFFBITS=FALSE;
-int SHOW_SCFSI=FALSE;
-int SHOW_BLOCK_TYPE=FALSE;
-int SHOW_TABLES=FALSE;
-int SHOW_BITRATE=FALSE;
-int AUDIO_BUFFER_SIZE = 100*1024;
+#include <unistd.h>
+#include <sys/types.h>
 
-int A_DUMP_BINARY=FALSE;
-int A_QUIET=FALSE;
-int A_FORMAT_WAVE=FALSE;
-int A_SHOW_CNT=FALSE;
-int A_WRITE_TO_FILE=FALSE;
-int A_MSG_STDOUT=FALSE;
-int A_SHOW_TIME = TRUE;
-int A_AUDIO_PLAY = TRUE;
-*/
-/* program constants. used to indicate play status and for breaking out of
-   loops and changing function from player to playlist and back. */
+#include <sys/time.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <errno.h>
 
-int bar_heights[32];
-
-int display_spectrum;
-
-STRLIST dirlist  = { 0, 0, 0, 0 };
-STRLIST playlist = { 0, 0, 0, 0 };
-char cwd[256];
-char tmpstr[150];
-
-#define LOGO_X 50
-#define LOGO_Y 20
-char logo[LOGO_Y][LOGO_X];
-int logo_width;
-int logo_height;
-
-pthread_t player_thread; /* the player thread */
-pthread_mutex_t mut, readMut;
-pthread_cond_t cond;
-
-int stop;   /* stopping condition for the program */
-int play;
-int current;
-
-int time_mode;
-int length;
-
-int ch;
-int currentVolume;
-char filename[150];
-char tmpstring[150];
-char tmpname[150];
-char start_dir[150];
-
-int first_loop;
-int last_loop;
-struct AUDIO_HEADER header;
-
-int cnt;
+#include <string.h>
+#include <dirent.h>
 
 /* our windows */
-WINDOW *dirwin, *playwin, *helpwin, *titlewin, *mainwin;
+WINDOW *dirwin = NULL; /* direcory list window (in editor) */
+WINDOW *listwin = NULL; /* playlist window (in editor) */
 
-int file_status;
-ID3_tag *ptrtag;
+WINDOW *titlewin = NULL; /* song time/title window (in player) */
+WINDOW *mainwin = NULL; /* main window (in player) */
+WINDOW *progwin = NULL; /* progress window (in player) */
 
-/*
- * opens the next mp3 for playback. calls show_filename to display the
- * name of the song in the titlewin.
- */
-int openAndSetup() {
+WINDOW *infowin = NULL; /* popup info window */
+WINDOW *helpwin = NULL; /* popup help window */
+WINDOW *miniwin = NULL; /* popup mini-list window in player*/
 
-    if(stop == PLAYER) {
-        clear_filename(titlewin);
-        show_filename(titlewin, &playlist, current);
-        refresh();
-        wnoutrefresh(titlewin);
-        wnoutrefresh(mainwin);
-        wnoutrefresh(helpwin);
-        doupdate();
-    }
+/* playlist and current directory list */
+ITEMLIST *playlist = NULL;
+ITEMLIST *dirlist = NULL;
 
-    strcpy(filename, playlist.dirs[current]);
-    strcat(filename, "/");
-    strcat(filename, playlist.files[current]);
+/* currenly playing song, or null if stopped */
+ITEM *curSong = NULL;
+ITEM *lastSong = NULL;
 
-    /* lock so we're only doing one of open/close/read at a time */
-    pthread_mutex_lock(&readMut);
+/* where the program currently is. one of playlist, player, quit */
+int func = PLAYLIST;
 
-    if (file_status == OPENED) {
-        fclose(in_file);
+/* directory to start in (NULL unless set on command line with '-d') */
+char *sdir = NULL;
 
-        if (AUDIO_BUFFER_SIZE != 0)
-            audioBufferClose();
-        else
-            audioClose();
-
-        file_status = CLOSED;
-    }
-
-    if ((in_file=fopen(filename,"r"))==NULL) {
-        die("Could not open file: %s\n", filename);
-        return(-1);
-    }
-
-    file_status = OPENED;
-
-    pthread_mutex_unlock(&readMut);
-
-    /* initialize globals */
-    append=data=nch=0;
-    first_loop = FALSE;
-    cnt = 0;
-
-    return(0);
-}
+/* player configuration */
+CONFIGURATION configuration;
 
 /*
- * closes the currently playing mp3 and gets ready to move onto the next
- * if one is available.
+ * initialize the given list with the contents of the specified directory.
+ * this is called upon entering a new directory and upon entering the
+ * playlist browser.
  */
-int closeAndEnd() {
+void initDirlist(char *pwd, ITEMLIST **list) {
+   DIR *dir;
+   struct dirent *entry;
+   struct stat dstat;
+   char cwd[MAX_STRLEN];
+   char tmpstr[MAX_STRLEN];
 
-    /* lock so we're only doing one of open/close/read at a time */
-    pthread_mutex_lock(&readMut);
+   if (pwd[0] == '\0') {
+      getcwd(cwd, sizeof(cwd));
+   } else {
+      chdir(pwd);
+      getcwd(cwd, sizeof(cwd));
+   }
+   freeList(list);
+   initList(list);
 
-    if (file_status == OPENED) {
-        fclose(in_file);
-        if (AUDIO_BUFFER_SIZE != 0)
-            audioBufferClose();
-        else
-            audioClose();
-    }
+   if ((dir = opendir(cwd)) == NULL)
+      die("initDirlist: cant open dir \"%s\"\n", cwd);
 
-    file_status = CLOSED;
+   while((entry = readdir(dir))) {
 
-    pthread_mutex_unlock(&readMut);
+      if (strcmp(".", entry->d_name) == 0)  continue;
+      if (stat(entry->d_name, &dstat) != 0) continue;
 
-    current++;
+      if (S_ISDIR(dstat.st_mode)) {
+         sprintf(tmpstr, "%s/%s", cwd, entry->d_name);
+         addItem(newItem(tmpstr, NULL), list);
 
-    clear_filename(titlewin);
+      } else if(S_ISREG(dstat.st_mode)) {
+         if (ismp3(entry->d_name))
+            addItem(newItem(cwd, entry->d_name), list);
 
-    cnt = 0;
-    last_loop = FALSE;
-    first_loop = TRUE;
+      } else {
+         continue;
+      }
 
-    if (current >= playlist.cur) {
-        current = -1;
-        wclear(mainwin);
-        box(mainwin, 0, 0);
-        refresh();
-        wnoutrefresh(titlewin);
-        wnoutrefresh(mainwin);
-        wnoutrefresh(helpwin);
-        doupdate();
-
-        return(-1);
-    }
-
-    return(0);
+   }
 
 }
 
 /*
- * plays a single mp3 frame. calls processHeader, statusDisplay, and on
- * its first run through it will get the length of the track (in seconds)
- * via the get_time function.
+ * cleanup when exiting player. destroys windows and sets the pointers
+ * to NULL.
  */
-int playFrame() {
-
-    int retval = 0;
-
-    /* lock so we're only doing one of open/close/read at a time */
-    pthread_mutex_lock(&readMut);
-
-    if (processHeader(&header,cnt))
-        last_loop = TRUE;
-
-    else {
-        statusDisplay(titlewin, mainwin, LINES - 8, COLS - 2, &header, cnt);
-
-        /* setup the audio when we have the frame info */
-        if (!cnt) {
-
-            length = get_time(&header);
-
-            if (AUDIO_BUFFER_SIZE == 0)
-                audioOpen(t_sampling_frequency[header.ID][header.sampling_frequency],
-                          (header.mode!=3),currentVolume);
-            else
-                audioBufferOpen(t_sampling_frequency[header.ID][header.sampling_frequency],
-                                (header.mode!=3),currentVolume);
-        }
-
-        if (layer3_frame(&header,cnt)) {
-            warn(" error. blip.\n");
-            retval = 1;
-            last_loop = TRUE;
-        } else
-            cnt++;
-
-    }
-
-    pthread_mutex_unlock(&readMut);
-
-    return(retval);
-
-}
-
-/*
- * this function is run as a separate thread and it plays the songs. if
- * the player is not set to 'play' it will wait until signaled to
- * continue.
- */
-void *play_song(void *arg) {
-
-    int frame_size = 0;
-
-    /* _the_ loop */
-    for(;;){
-        if (play == PLAY) {
-            if (first_loop == TRUE) {
-                openAndSetup();
-            }
-
-            playFrame();
-
-            if (last_loop == TRUE)
-                if (closeAndEnd() < 0) {
-                    pthread_mutex_lock(&mut);
-                    play = STOP;
-                    pthread_mutex_unlock(&mut);
-                }
-        } else if ((play == NEXT) || (play == PREV)) {
-
-            play = PLAY;
-            cnt = 0;
-            first_loop = TRUE;
-            last_loop = FALSE;
-
-        } else if ((play == FFWD) && (file_status == OPENED)) {
-
-    if (processHeader(&header,cnt))
-        last_loop = TRUE;
-            frame_size = bits_per_frame(&header);
-            sackbits(frame_size);
-    if (processHeader(&header,cnt))
-        last_loop = TRUE;
-            frame_size = bits_per_frame(&header);
-            sackbits(frame_size);
-    if (processHeader(&header,cnt))
-        last_loop = TRUE;
-            frame_size = bits_per_frame(&header);
-            sackbits(frame_size);
-    if (processHeader(&header,cnt))
-        last_loop = TRUE;
-            frame_size = bits_per_frame(&header);
-            sackbits(frame_size);
-    if (processHeader(&header,cnt))
-        last_loop = TRUE;
-            frame_size = bits_per_frame(&header);
-            sackbits(frame_size);
-
-            cnt += 5;
-/*            fseek(in_file, frame_size, SEEK_CUR);
-*/            play = PLAY;
-
-        } else if ((play == REW) && (file_status == OPENED)) {
-
-/*            frame_size = bits_per_frame(&header);
-            cnt -= 8;
-            fseek(in_file, -frame_size, SEEK_CUR);
-*/            play = PLAY;
-
-        } else {
-
-            pthread_mutex_lock(&mut);
-            pthread_cond_wait(&cond, &mut);
-            pthread_mutex_unlock(&mut);
-
-        }
-    }
-
-    return NULL;
-}
-
-/*
- * reads in the mp3 header and checks it. also reads the crc bit to get it
- * out of the way.
- */
-int inline processHeader(struct AUDIO_HEADER *header, int cnt) {
-    int g;
-
-    /* getbits funcs expect first four bytes after BUFFER_SIZE have same contents
-     * as the first four bytes of the buffer. fillbfr() normally takes care of
-     * this when it hits the end of the buffer, but not this first time
-     */
-    if (cnt==1) memcpy(&buffer[BUFFER_SIZE],buffer,4);	/* XXX WHAT!!! */
-
-    if ((g=gethdr(header))!=0) {
-        if (g != GETHDR_ERR) {
-            warn(" this is a file in MPEG 2.5 format, which is not defined\n");
-            warn(" by ISO/MPEG. It is \"a special Fraunhofer format\".\n");
-            warn(" gamp does not support this format. sorry.\n");
-        } else {
-            /* here we should check whether it was an EOF or a sync err. later. */
-            if (A_FORMAT_WAVE) wav_end(header);
-
-            /* this is the message we'll print once we check for sync err.
-             * warn(" gamp encountered a synchronization error\n");
-             * warn(" sorry.\n");
-             */
-        }
-        return(1);
-    }
-
-    /* crc is read just to get out of the way.
-     */
-    if (header->protection_bit == 0) getcrc();
-
-    return(0);
-}
-
-/*
- * displays status (well, more than status). updates the elapsed/remaining
- * time once every 10 frames if the spectrum is off. if spectrum is on it
- * updates the spectrum and time and redisplays every other fram.
- */
-void statusDisplay(WINDOW *twin, WINDOW *mwin, int height, int width,
-                   struct AUDIO_HEADER *header, int frameNo) {
-
-    int minutes,seconds;
-    if (stop == PLAYER) {
-
-    if (!(frameNo%10)) {
-	seconds=frameNo*1152/t_sampling_frequency[header->ID][header->sampling_frequency];
-
-        if (time_mode == ELAPSED) {
-            minutes = seconds / 60;
-            seconds = seconds % 60;
-
-            sprintf(tmpstr, " [%2d:%02d]", minutes, seconds);
-            mvwaddstr(twin, 1, 1, tmpstr);
-            wnoutrefresh(twin);
-        } else {
-            seconds = length - seconds;
-
-            if (seconds < 0) seconds = 0;
-
-            minutes = seconds / 60;
-            seconds = seconds % 60;
-
-            sprintf(tmpstr, " [-%d:%02d]", minutes, seconds);
-            mvwaddstr(twin, 1, 1, tmpstr);
-            wnoutrefresh(twin);
-        }
-    }
-
-    if (display_spectrum == SHOW_SPECTRUM) {
-        sanalyzer_render_freq(mwin, height, width);
-        if (!(frameNo%2)) {
-            refresh();
-            wnoutrefresh(mwin);
-            doupdate();
-        }
-    } else {
-        if (!(frameNo%10)) {
-            refresh();
-            wnoutrefresh(mwin);
-            doupdate();
-        }
-    }
-
-    fflush(stderr);
-    }
-}
-
-/*
- * initializes the playlist to be empty with an initial size of 20 entries.
- */
-void init_playlist(void) {
-    free_list(&playlist);
-    init_list(&playlist, 20);
-}
-
-/*
- * initialize the directory list. this is called upon entering a new
- * directory or upon entering the playlist browser.
- */
-void init_dirlist(char *pwd) {
-    DIR *dir;
-    struct dirent *entry;
-    struct stat dstat;
-    char blank[5]="";
-
-    if (pwd[0] == '\0') {
-        getcwd(cwd, sizeof(cwd));
-    } else {
-        chdir(pwd);
-        getcwd(cwd, sizeof(cwd));
-    }
-
-    free_list(&dirlist);
-    init_list(&dirlist, 30);
-
-    if((dir = opendir(cwd)) == NULL) die("cant open dir");
-
-    while((entry = readdir(dir))) {
-
-        if(strcmp(".", entry->d_name) == 0)  continue;
-        if(stat(entry->d_name, &dstat) != 0) continue;
-
-        if(S_ISDIR(dstat.st_mode))
-            add(&dirlist, entry->d_name, blank, entry->d_name);
-
-        else if(S_ISREG(dstat.st_mode)) {
-            if (ismp3(entry->d_name))
-                add(&dirlist, blank, entry->d_name, getName(entry->d_name));
-
-        } else continue;
-
-    }
-
-    sort_list(&dirlist);
-}
-
-/*
- * fills a given window with contents of the list, starting with item
- * 'first' from the list. only displays enough items to fill the window.
- * will truncate names so that they fit across the window.
- */
-void fillwin(WINDOW *win, STRLIST *list, int first, int width, int height) {
-
-    int i;
-    char *dirfilecat;
-
-    for(i = 0; i < list->cur && i < height - 2; i++) {
-        /* if its a file, print only the file */
-        if (isfile(list,i+first))
-            strtrunc(list->files[i+first],width-2);
-
-        /* if its a dir then print only the dir */
-        else if (isdir(list,i+first))
-            strtrunc(list->dirs[i+first],width-2);
-
-        /* if it is neither then it is a dir+file combo so
-           concatentate dir to file and print */
-        else {
-            dirfilecat = malloc(sizeof(char) *
-                         (strlen(list->dirs[i+first]) +
-                          strlen(list->files[i+first]) + 2));
-            strcpy(dirfilecat, list->dirs[i+first]);
-            strcat(dirfilecat, "/");
-            strcat(dirfilecat, list->files[i+first]);
-            strtrunc(dirfilecat, width-2);
-            free(dirfilecat);
-        }
-        mvwaddstr(win, i+1, 1, tmpstr);
-    }
-
-}
-
-/*
- * shows a filename in the given window, offset by 9 characters to allow
- * room for the time to be displayed.
- */
-void show_filename(WINDOW *win, STRLIST *list, int index) {
-    char *dirfilecat;
-
-    dirfilecat = malloc(sizeof(char) * (strlen(list->names[index]) + 9));
-
-    strcpy(dirfilecat, "         ");
-    strcat(dirfilecat, list->names[index]);
-    strtrunc(dirfilecat, COLS-2);
-
-    mvwaddstr(win, 1, 1, tmpstr);
-}
-
-/*
- * displays the gamp logo in the center of the window! :)
- */
-void show_logo(WINDOW *win, int win_height, int win_width) {
-
-    int i = 0, x_offset = 0, y_offset = 0;
-
-    x_offset = (win_width - logo_width) / 2;
-    y_offset = (win_height - logo_height) / 2;
-
-    if (x_offset < 0) x_offset = 0;
-    if (y_offset < 0) y_offset = 0;
-
-    for (i = 0; i < logo_height; i++)
-        mvwaddstr(win, i+y_offset, x_offset, logo[i]);
-}
-
-/*
- * clears the filename from the given window. this is sort of ugly, so i
- * should probably fix it one of these days.
- */
-void clear_filename(WINDOW *win) {
-    char dirfilecat[150];
-
-    strcpy(dirfilecat, "    ");
-    strtrunc(dirfilecat, COLS-2);
-
-    mvwaddstr(win, 1, 1, tmpstr);
+void finishPlayer() {
+
+   if (titlewin != NULL) {
+      delwin(titlewin);
+      titlewin = NULL;
+   }
+   if (mainwin != NULL) {
+      delwin(mainwin);
+      mainwin = NULL;
+   }
+   if (progwin != NULL) {
+      delwin(progwin);
+      progwin = NULL;
+   }
 }
 
 /*
  * initialization routine for the player. sets up the windows, displays
- * information if the track is already playing, shows the help menu at the
- * bottom.
+ * information if the track is already playing.
  */
-void init_player() {
+void initPlayer() {
 
-    delwin(titlewin);
-    delwin(mainwin);
+   /* create windows */
+   titlewin = newwin(3, 0, 0, 0);
+   if (titlewin == NULL) die("initPlayer: newwin failure\n");
+   mainwin = newwin(LINES - 6, 0, 3, 0);
+   if (mainwin == NULL) die("initPlayer: newwin failure\n");
+   progwin = newwin(3, 0, LINES - 3, 0);
+   if (progwin == NULL) die("initPlayer: newwin failure\n");
 
-    /* create windows */
-    titlewin = newwin(3, 0, 0, 0);
-    mainwin = newwin(LINES - 6, 0, 3, 0);
-    helpwin = newwin(3, 0, LINES - 3, 0);
+   /* draw boxes in windows and fill them with something */
+   box(titlewin, 0, 0);
+   box(mainwin, 0, 0);
+   box(progwin, 0, 0);
 
-    /* draw boxes in windows and fill them with something */
-    box(titlewin, 0, 0);
-    box(mainwin, 0, 0);
-    box(helpwin, 0, 0);
+   if (curState & playState)
+      showFilename(titlewin, curSong);
 
-    if (play == PLAY)
-        show_filename(titlewin, &playlist, current);
+   if (configuration.repeatMode == repeatOne)
+      mvwaddstr(titlewin, 1, 1, "r");
+   else if (configuration.repeatMode == repeatAll)
+      mvwaddstr(titlewin, 1, 1, "R");
 
-    if (display_spectrum == NO_SPECTRUM)
-        show_logo(mainwin, LINES - 8, COLS - 2);
+   if (configuration.displaySpectrum == FALSE)
+      showLogo(mainwin, LINES, COLS);
 
-    strcpy(tmpstring, " Play Stop pLaylist Quit Ffwd Rew Next preV");
-    strcat(tmpstring, " pAuse Display Time");
-    mvwaddstr(helpwin, 1, 1, tmpstring);
-
-    /* move cursor to its start position */
-    move(1,1);
-
-    /* refresh screen */
-    refresh();
-    wnoutrefresh(titlewin);
-    wnoutrefresh(mainwin);
-    wnoutrefresh(helpwin);
-    doupdate();
+   /* refresh screen */
+   refresh();
+   wnoutrefresh(titlewin);
+   wnoutrefresh(mainwin);
+   wnoutrefresh(progwin);
+   doupdate();
 
 }
 
@@ -575,472 +161,1743 @@ void init_player() {
  * the player function. this controls all the keyboard input while in
  * player mode. returns info about what part of the program to go to next.
  */
-int play_playlist(int argc, char *argv[]) {
+int playPlaylist() {
 
-    if (play != PLAY) {
-        first_loop = TRUE;
-        last_loop = FALSE;
+   int ch = ';';
 
-        cnt = 0;
-    }
+   initPlayer();
 
-    init_player();
+   if (helpwin != NULL) {
+      toggleHelpWin();
+      toggleHelpWin();
+   }
+   if (infowin != NULL) {
+      toggleInfoWin();
+      toggleInfoWin();
+   }
+   if (miniwin != NULL) {
+      toggleMiniWin();
+      toggleMiniWin();
+   }
 
-    while(stop == PLAYER) {
+   /* if we're in 'autoplay' mode via the '-p' command line switch */
+   if (func == GOPLAY) {
+      func = PLAYER;
+      if (playlist != NULL) curSong = playlist->head;
+      playerPlay(curSong);
+   }
 
-        ch = wgetch(titlewin);
-        switch(ch) {
-            case 'q': /* quit program */
-                pthread_mutex_lock(&mut);
-                play = STOP;
-                pthread_cond_signal(&cond);
-                pthread_mutex_unlock(&mut);
-                stop = QUIT;
-                break;
+   while(func == PLAYER) {
 
-            case 'p': case ' ': /* play */
-                if (playlist.cur > 0) {
-                    if ((current >= playlist.cur) || (current < 0))
-                        current = 0;
-                    pthread_mutex_lock(&mut);
-                    play = PLAY;
-                    pthread_cond_signal(&cond);
-                    pthread_mutex_unlock(&mut);
-                }
-                break;
+      ch = getch();
+      switch(ch) {
+         case 'q': /* quit program */
+            func = QUIT;
+            break;
 
-            case 'f': /* ffwd */
-/*                if ((play == PLAY) || (play == PAUSE)) {
-                    pthread_mutex_lock(&mut);
-                    play = FFWD;
-                    pthread_cond_signal(&cond);
-                    pthread_mutex_unlock(&mut);
-                }
-*/                break;
+         case 'p': /* play */
+         case ' ':
+            if (!(curState & playState)) {
+               if (curSong != NULL) playerPlay(curSong);
+               else {
+                  if (playlist != NULL) curSong = playlist->head;
+                  playerPlay(curSong);
+               }
+            }
+            break;
 
-            case 'r': /* rew */
-/*                if ((play == PLAY) || (play == PAUSE)) {
-                    pthread_mutex_lock(&mut);
-                    play = REW;
-                    pthread_cond_signal(&cond);
-                    pthread_mutex_unlock(&mut);
-                }
-*/                break;
+         case 'h': /* show/remove help window */
+            toggleHelpWin();
+            break;
 
-            case 'n': /* next */
-            case KEY_RIGHT:
-                if (current < playlist.cur - 1) {
-                    current++;
-                    pthread_mutex_lock(&mut);
-                    play = NEXT;
-                    pthread_cond_signal(&cond);
-                    pthread_mutex_unlock(&mut);
-                }
-                break;
+         case 'i': /* show/remove mp3 info */
+            toggleInfoWin();
+            break;
 
-            case 'v': /* prev */
-            case KEY_LEFT:
-                if (current > 0) {
-                    current--;
-                    pthread_mutex_lock(&mut);
-                    play = PREV;
-                    pthread_cond_signal(&cond);
-                    pthread_mutex_unlock(&mut);
-                }
-                break;
+         case 'f': /* ffwd */
+            playerForward();
+            timeout(configuration.stepTimeout);
+            ch = '0';
+            while ((ch != 'f') && (ch != 'p')) {
+               ch = getch();
+               playerStep();
+            }
+            timeout(-1);
+            playerForward();
+            break;
 
-            case 'a': /* pause */
-                if (play == PLAY) { /* pause if playing */
-                    pthread_mutex_lock(&mut);
-                    play = PAUSE;
-                    pthread_cond_signal(&cond);
-                    pthread_mutex_unlock(&mut);
-                }
-                else if (play == PAUSE) { /* unpause if already paused */
-                    pthread_mutex_lock(&mut);
-                    play = PLAY;
-                    pthread_cond_signal(&cond);
-                    pthread_mutex_unlock(&mut);
-                }
-                break;
+         case 'r': /* rew */
+            playerRewind();
+            timeout(configuration.stepTimeout);
+            ch = '0';
+            while ((ch != 'r') && (ch != 'p')) {
+               ch = getch();
+               playerStep();
+            }
+            timeout(-1);
+            playerRewind();
+            break;
 
-            case '+': case '=': /* increase volume */
-                if (currentVolume < 100) {
-                    currentVolume += 5;
-                    if (currentVolume > 100) currentVolume = 100;
-                    audioSetVolume(currentVolume);
-                }
-                break;
+         case 'n': /* next */
+         case KEY_RIGHT:
+            playerNext();
+            break;
 
-            case '-': case '_': /* decrease volume */
-                if (currentVolume > 0) {
-                    currentVolume -= 5;
-                    if (currentVolume < 0) currentVolume = 0;
-                    audioSetVolume(currentVolume);
-                }
-                break;
+         case 'v': /* prev */
+         case KEY_LEFT:
+            playerPlay(getPrevSong());
+            break;
 
-            case 'd': /* toggle visuals on/off */
-                wclear(mainwin);
-                box(mainwin, 0, 0);
-                if (display_spectrum == NO_SPECTRUM)
-                    display_spectrum = SHOW_SPECTRUM;
-                else
-                    display_spectrum = NO_SPECTRUM;
+         case 'u': /* show/remove mini-list */
+         case 'm':
+            toggleMiniWin();
+            break;
 
-                init_player();
-                break;
+         case 'a': /* pause */
+            playerPause();
+            break;
 
-            case 't': /* toggle time mode between elapsed/remaining */
-                if (time_mode == ELAPSED)
-                    time_mode = REMAINING;
-                else
-                    time_mode = ELAPSED;
-                break;
+         case '+': /* increase volume (disabled) */
+            break;
 
-            case 's': /* stop */
-                if ((play == PLAY) || (play == PAUSE)) {
-                    pthread_mutex_lock(&mut);
-                    play = STOP;
-                    pthread_cond_signal(&cond);
-                    pthread_mutex_unlock(&mut);
+         case '-': /* decrease volume (disabled) */
+            break;
 
-                    init_player();
-                }
-                else if (play == STOP) {
-                    if (playlist.cur > 0)
-                        current = -1;
-                }
+         case 'd': /* toggle visuals on/off (disabled) */
+            break;
 
-                break;
+         case 't': /* toggle time mode between elapsed/remaining */
+            if (configuration.timeMode == ELAPSED)
+               configuration.timeMode = REMAINING;
+            else
+               configuration.timeMode = ELAPSED;
+            if (configuration.dirty == 0) configuration.dirty = 1;
+            break;
 
-            case 'l': /* back to playlist */
-                stop = PLAYLIST;
-                break;
+         case 'R': /* cycle repeat mode through none/one/all */
+            if (configuration.repeatMode == repeatNone) {
+               configuration.repeatMode = repeatOne;
+               mvwaddstr(titlewin, 1, 1, "r");
+            } else if (configuration.repeatMode == repeatOne) {
+               configuration.repeatMode = repeatAll;
+               mvwaddstr(titlewin, 1, 1, "R");
+            } else if (configuration.repeatMode == repeatAll) {
+               configuration.repeatMode = repeatNone;
+               mvwaddstr(titlewin, 1, 1, " ");
+            }
+            wnoutrefresh(titlewin);
+            doupdate();
+            if (configuration.dirty == 0) configuration.dirty = 1;
+            break;
 
-        }
+         case 's': /* stop */
+            playerStop();
+            updateStopped();
+            break;
 
-    }
+         case 'l': /* back to playlist */
+         case '>':
+         case '<':
+            func = PLAYLIST;
+            break;
 
-    return stop;
+         case 12: /* ctrl-l (refresh) */
+            finishPlayer();
+            initPlayer();
+            if (helpwin != NULL) {
+               toggleHelpWin();
+               toggleHelpWin();
+            }
+            if (infowin != NULL) {
+               toggleInfoWin();
+               toggleInfoWin();
+            }
+            if (miniwin != NULL) {
+               toggleMiniWin();
+               toggleMiniWin();
+            }
+            break;
+
+         default:
+            break;
+
+      }
+
+   }
+
+   finishPlayer();
+
+   return(func);
+}
+
+/*
+ * writes num entries from list begining with first into win. will show
+ * sel item in reverse text.
+ */
+void fillwin(WINDOW *win, ITEM *first, ITEMLIST *list, int num, ITEM *sel) {
+
+   ITEM *cur = NULL;
+   int i = 0;
+   char *tmpstr = NULL;
+
+   wclear(win);
+   box(win, 0, 0);
+   cur = first;
+   while ((i <= num) && (cur != NULL)) {
+
+      if (cur == sel) wattrset(win, A_REVERSE);
+      tmpstr = strpad(cur, win->_maxx - 1);
+      mvwaddstr(win, i+1, 1, tmpstr);
+      free(tmpstr);
+      if (cur == sel) wattrset(win, A_NORMAL);
+      cur = cur->next;
+      i++;
+   }
+
+   wnoutrefresh(win);
+   doupdate();
+}
+
+/*
+ * playlist editor cleanup routine. destroys windows and sets pointers to
+ * NULL.
+ */
+void finishEditor() {
+
+   if (dirwin != NULL) {
+      delwin(dirwin);
+      dirwin = NULL;
+   }
+   if (listwin != NULL) {
+      delwin(listwin);
+      listwin = NULL;
+   }
+}
+
+/*
+ * initialization routine for the editor. sets up the windows, displays
+ * information if the track is already playing, shows the help menu at the
+ * bottom.
+ */
+void initEditor() {
+
+   int dirwin_height, listwin_height;  /* height of our windows */
+
+   dirwin_height = LINES/2;  /* window sizes */
+   listwin_height = LINES - dirwin_height;
+
+   /* create windows */
+   dirwin = newwin(dirwin_height, 0, 0, 0);
+   if (dirwin == NULL) die("initEditor: newwin failure\n");
+   listwin = newwin(listwin_height, 0, dirwin_height, 0);
+   if (listwin == NULL) die("initEditor: newwin failure\n");
+
+   /* draw boxes in windows and fill them with something */
+   box(dirwin, 0, 0);
+   box(listwin, 0, 0);
+
+   /* refresh screen */
+   refresh();
+   wnoutrefresh(dirwin);
+   wnoutrefresh(listwin);
+   doupdate();
+
 }
 
 /*
  * the playlist editor. sets up the windows and allows you to create/alter
  * your playlist.
  */
-int edit_playlist(int argc, char *argv[]) {
+int editPlaylist() {
 
-    int y = 1;       /* the y position (within a given window) */
-    int win = 0;     /* window number. 0=dirwin, 1=playwin */
-    int i = 0;       /* loop counter */
+   int win = 0;     /* window number. 0=dirwin, 1=listwin */
+   int dw_pos = 0;  /* cursor position in dirwin */
+   int lw_pos = 0;  /* cursor position in listwin */
+   int ch = ';';
+   int *pos = &dw_pos;
+   char cwd[MAX_STRLEN];
 
-    int dirwin_width, playwin_width;    /* width of our windows */
-    int dirwin_height, playwin_height;  /* height of our windows */
-    int dirwin_first = 0, playwin_first = 0; /* first item in window */
-    int dirwin_start, playwin_start; /* starting position of windows */
+   ITEM *dw_first = NULL; /* first item showing in window */
+   ITEM *lw_first = NULL;
+   ITEM *dw_cur = NULL;   /* currently selected item in window */
+   ITEM *lw_cur = NULL;
 
-    dirwin_height = (LINES - 3)/2;  /* window sizes */
-    playwin_height = LINES - dirwin_height - 3;
-    dirwin_width = COLS;
-    playwin_width = COLS;
+   int i = 0;        /* loop counter */
+   ITEM *itm = NULL; /* loop pointer */
+   char *filename = NULL; /* load/save filename */
 
-    dirwin_start = 0;
-    playwin_start = dirwin_height;
+   initEditor();
 
-    /* create windows */
-    dirwin =  newwin(dirwin_height, 0, 0, 0);
-    playwin = newwin(playwin_height, 0, dirwin_height, 0);
-    helpwin = newwin(3, 0, dirwin_height + playwin_height, 0);
+   initDirlist("", &dirlist);
+   sortList(dirlist);
 
-    /* draw boxes in windows and fill them with something */
-    box(dirwin, 0, 0);
-    fillwin(dirwin, &dirlist, dirwin_first,
-            dirwin_width, dirwin_height);
-    box(playwin, 0, 0);
-    fillwin(playwin, &playlist, playwin_first,
-            playwin_width, playwin_height);
-    box(helpwin, 0, 0);
+   if (playlist != NULL) {
+      if (curState & playState) {
+         lw_first = curSong;
+         lw_cur = curSong;
+      } else {
+         lw_first = playlist->head;
+         lw_cur = playlist->head;
+      }
+   }
+   if (dirlist != NULL) {
+      dw_first = dirlist->head;
+      dw_cur = dirlist->head;
+   }
 
-    strcpy(tmpstr, " Quit Clear All (tab)switch (left)remove ");
-    strcat(tmpstr, "(right)add/browse Player Random");
-    mvwaddstr(helpwin, 1, 1, tmpstr);
+   /* draw boxes in windows and fill them with something */
+   fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2, dw_cur);
+   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2, NULL);
 
-    /* refresh screen */
-    refresh();
-    wnoutrefresh(dirwin);
-    wnoutrefresh(playwin);
-    wnoutrefresh(helpwin);
-    doupdate();
+   if (helpwin != NULL) {
+      toggleHelpWin();
+      toggleHelpWin();
+   }
 
-    /* move cursor to its start position */
-    move(1,1);
+   while (func == PLAYLIST) {
 
-    while(stop == PLAYLIST) {
+      move(0, 0);
 
-        int ch = getch();
+      ch = getch();
+      switch(ch) {
 
-        switch(ch) {
-            case 'p': /* start playing! */
-                move(0, 0);
-                stop = PLAYER;
-                break;
+         case 'p': /* start playing! */
+         case '>':
+         case '<':
+            func = PLAYER;
+            break;
 
-            case 'q': /* quit program */
-                move(0, 0);
-                stop = QUIT;
-                break;
+         case 'q': /* quit program */
+            func = QUIT;
+            break;
 
-            case 'c': /* clear the playlist */
-                if (play == PLAY) {
-                    pthread_mutex_lock(&mut);
-                    play = STOP;
-                    pthread_cond_signal(&cond);
-                    pthread_mutex_unlock(&mut);
-                }
-                current = -1;
-                init_playlist();
-                wclear(playwin);
-                box(playwin, 0, 0);
-                break;
+         case 's': /* save playlist */
+            filename = getFilename("save filename (ESC aborts):");
+            if (filename != NULL) {
+               if (exists(filename)) {
+                  if (confirm("file exists. overwrite ([y]/n)?", TRUE))
+                     writeM3u(filename);
+               } else {
+                  writeM3u(filename);
+               }
+            }
+            break;
 
-            case 'a': /* add all in current directory */
-                for (i = 0; i < dirlist.cur; i++) {
-                    if (isfile(&dirlist, i))
-                        add(&playlist, cwd, dirlist.files[i], dirlist.names[i]);
-                }
-                fillwin(playwin,&playlist,playwin_first,
-                        playwin_width, playwin_height);
-                break;
+         case 'l': /* load playlist */
+            filename = getFilename("load filename (ESC aborts):");
+            if (filename != NULL) {
+               readM3u(filename);
 
-            case ' ': /* scroll down by one page (if possible) */
-                if (win == 0) {
-                    if (dirwin_first+dirwin_height-2 < dirlist.cur) {
-                        dirwin_first += dirwin_height - 2;
-                        if (dirwin_first + dirwin_height - 2 > dirlist.cur)
-                            dirwin_first = dirlist.cur - dirwin_height + 2;
-                    } else {
-                        y = dirwin_height - 2;
-                        if (y > dirlist.cur) y = dirlist.cur;
-                    }
+               if ((lw_first == NULL) && (playlist != NULL))
+                  lw_first = playlist->head;
+               if ((lw_cur == NULL) && (playlist != NULL))
+                  lw_cur = playlist->head;
 
-                    fillwin(dirwin, &dirlist, dirwin_first,
-                            dirwin_width, dirwin_height);
-                }
-                else if (win == 1) {
-                    if (playwin_first+playwin_height-2 < playlist.cur) {
-                        playwin_first += playwin_height - 2;
-                        if (playwin_first + playwin_height - 2 > playlist.cur)
-                            playwin_first = playlist.cur - playwin_height + 2;
-                    } else {
-                        y = playwin_height -2;
-                        if (y > playlist.cur) y = playlist.cur;
-                    }
+               if (win == 0) {
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                          NULL);
+               } else {
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                          lw_cur);
+               }
+            }
+            break;
 
-                    fillwin(playwin, &playlist, playwin_first,
-                            playwin_width, playwin_height);
-                }
-                break;
+         case 'h': /* toggle help window */
+            toggleHelpWin();
+            break;
 
-            case KEY_UP: /* move up in window, scroll if needed */
-                if (y > 1)
-                    y--;
-                else {
-                    if (win == 0 && dirwin_first > 0) {
-                        dirwin_first--;
-                        fillwin(dirwin,&dirlist,dirwin_first,
-                                dirwin_width, dirwin_height);
-                    }
-                    else if (win == 1 && playwin_first > 0) {
-                        playwin_first--;
-                        fillwin(playwin,&playlist,playwin_first,
-                                playwin_width, playwin_height);
-                    }
-                }
-                break;
+         case 'c': /* clear the playlist */
+            if (curState & playState) {
+               playerStop();
+            }
 
-            case KEY_DOWN: /* move down in window, scroll if needed */
-                if (win == 0 && y+dirwin_first < dirlist.cur) {
-                    if (y == dirwin_height - 2) {
-                        dirwin_first++;
-                        fillwin(dirwin,&dirlist,dirwin_first,
-                                dirwin_width, dirwin_height);
-                    }
-                    else y++;
-                }
-                else if (win == 1 && y+playwin_first < playlist.cur) {
-                    if (y == playwin_height - 2) {
-                        playwin_first++;
-                        fillwin(playwin,&playlist,playwin_first,
-                                playwin_width, playwin_height);
-                    }
-                    else y++;
-                }
-                break;
+            lastSong = NULL;
+            curSong = NULL;
 
-            case KEY_LEFT: /* remove item (only if in playlist win) */
-                if (win == 1 && playlist.cur > 0) {
-                    delete(&playlist, y+playwin_first-1);
-                    wclear(playwin);
-                    box(playwin, 0, 0);
-                    fillwin(playwin,&playlist,playwin_first,
-                            playwin_width, playwin_height);
+            freeList(&playlist);
+            playlist = NULL;
 
-                    if (y+playwin_first > playlist.cur)
-                        if (y > 1) y--;
+            lw_pos = 0;
+            lw_cur = NULL;
+            lw_first = NULL;
+            wclear(listwin);
+            box(listwin, 0, 0);
+            break;
 
-                    /* if we are currently playing then we need to adjust
-                       the pointer to the current playing song */
-                    if (play == PLAY) {
-                        if (y+playwin_first-1 < current)
-                            current--;
-                        else if (y+playwin_first-1 == current) {
-                            pthread_mutex_lock(&mut);
-                            play = NEXT;
-                            pthread_cond_signal(&cond);
-                            pthread_mutex_unlock(&mut);
-                        }
-                    }
-                }
-                break;
+         case 'a': /* add all in current directory */
+            if ((dirlist != NULL) && (win == 0)) {
+               itm = dirlist->head;
+               while (itm != NULL) {
+                  if (itm->isfile) addItem(copyItem(itm), &playlist);
+                  itm = itm->next;
+               }
+               if (playlist != NULL) {
+                  if (lw_first == NULL) lw_first = playlist->head;
+                  if (lw_cur == NULL) lw_cur = playlist->head;
+               }
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       NULL);
 
-            case KEY_RIGHT: /* browse to new dir or add to playlist*/
-                if (win == 0) {
-                    if (isfile(&dirlist, y+dirwin_first-1)) {
-                        add(&playlist, cwd,
-                            dirlist.files[y+dirwin_first-1],
-                            dirlist.names[y+dirwin_first-1]);
-                        fillwin(playwin,&playlist,playwin_first,
-                                playwin_width, playwin_height);
-                    }
-                    else {
-                        init_dirlist(dirlist.dirs[y+dirwin_first-1]);
-                        y = 1;
-                        dirwin_first = 0;
-                        wclear(dirwin);
-                        box(dirwin, 0, 0);
-                        fillwin(dirwin, &dirlist, dirwin_first,
-                                dirwin_width, dirwin_height);
-                    }
-                }
-                break;
+            }
+            break;
 
-            case '\t': /* use tab to move between windows */
-                if (win == 1) win = 0;
-                else win = 1;
-                y = 1;
-                break;
+         case 'A': /* add all recursively */
+            if ((dirlist != NULL) && (win == 0)) {
+               getcwd(cwd, sizeof(cwd));
+               addRecursive(dirlist, &playlist);
+               if (playlist != NULL) {
+                  if (lw_first == NULL) lw_first = playlist->head;
+                  if (lw_cur == NULL) lw_cur = playlist->head;
+               }
+               chdir(cwd);
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2, 
+                       NULL);
+            }
+            break;
 
-            case 'r': /* r to randomize the playlist */
-                randomize_list(&playlist, &current);
-                playwin_first = 0;
-                fillwin(playwin,&playlist,playwin_first,
-                        playwin_width, playwin_height);
-                if (win == 1) y = 1;
-                break;
+         case ' ': /* scroll down by one page (if possible) */
+            if (win == 0) {
+               if ((dirlist != NULL) && (dw_cur != dirlist->tail)) {
+                  i = 0;
+                  itm = dw_first;
+                  while ((i < dirwin->_maxy - 1) && (itm != NULL)) {
+                     i++;
+                     itm = itm->next;
+                  }
 
-        }
-        move(y + win*dirwin_height, 1);
-        wnoutrefresh(dirwin);
-        wnoutrefresh(playwin);
-        wnoutrefresh(helpwin);
-        doupdate();
+                  if (itm != NULL) {
+                     dw_first = itm;
+                     dw_cur = itm;
+                     dw_pos = 0;
+                  } else {
+                     dw_pos = i - 1;
+                     dw_cur = dirlist->tail;
+                  }
 
-    }
+                  fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                          dw_cur);
+               }
+            } else {
+               if ((playlist != NULL) && (lw_cur != playlist->tail)) {
+                  i = 0;
+                  itm = lw_first;
+                  while ((i < listwin->_maxy - 1) && (itm != NULL)) {
+                     i++;
+                     itm = itm->next;
+                  }
 
-    delwin(playwin);
-    delwin(dirwin);
-    delwin(helpwin);
+                  if (itm != NULL) {
+                     lw_first = itm;
+                     lw_cur = itm;
+                     lw_pos = 0;
+                  } else {
+                     lw_pos = i - 1;
+                     lw_cur = playlist->tail;
+                  }
 
-    return stop;
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                          lw_cur);
+               }
+            }
+            break;
+
+         case '-': /* scroll up by one page (if possible) */
+            if (win == 0) {
+               if ((dirlist != NULL) && (dw_cur != dirlist->head)) {
+                  i = 0;
+                  itm = dw_first;
+                  while ((i < dirwin->_maxy - 1) && (itm != NULL)) {
+                     i++;
+                     itm = itm->prev;
+                  }
+
+                  if (itm != NULL) {
+                     dw_first = itm;
+                     dw_cur = itm;
+                     dw_pos = 0;
+                  } else {
+                     dw_pos = 0;
+                     dw_first = dirlist->head;
+                     dw_cur = dirlist->head;
+                  }
+
+                  fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                          dw_cur);
+               }
+            } else {
+               if ((playlist != NULL) && (lw_cur != playlist->head)) {
+                  i = 0;
+                  itm = lw_first;
+                  while ((i < listwin->_maxy - 1) && (itm != NULL)) {
+                     i++;
+                     itm = itm->prev;
+                  }
+
+                  if (itm != NULL) {
+                     lw_first = itm;
+                     lw_cur = itm;
+                     lw_pos = 0;
+                  } else {
+                     lw_pos = 0;
+                     lw_first = playlist->head;
+                     lw_cur = playlist->head;
+                  }
+
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                          lw_cur);
+               }
+            }
+            break;
+
+         case KEY_UP: /* move up in window, scroll if needed */
+            if (win == 0) {
+               if ((dw_cur != NULL) && (dw_cur->prev != NULL)) {
+                  if (dw_pos > 0) {
+                     dw_pos--;
+                     dw_cur = dw_cur->prev;
+                  } else {
+                     if (dw_first != NULL) dw_first = dw_first->prev;
+                     dw_cur = dw_cur->prev;
+                  }
+                  fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                          dw_cur);
+               }
+            } else {
+               if ((lw_cur != NULL) && (lw_cur->prev != NULL)) {
+                  if (lw_pos > 0) {
+                     lw_pos--;
+                     lw_cur = lw_cur->prev;
+                  } else {
+                     if (lw_first != NULL) lw_first = lw_first->prev;
+                     lw_cur = lw_cur->prev;
+                  }
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                          lw_cur);
+               }
+            }
+            break;
+
+         case KEY_DOWN: /* move down in window, scroll if needed */
+            if (win == 0) {
+               if ((dw_cur != NULL) && (dw_cur->next != NULL)) {
+                  if (dw_pos < (dirwin->_maxy - 2)) { /* no scroll */
+                     dw_pos++;
+                     dw_cur = dw_cur->next;
+                  } else { /* scroll */
+                     if (dw_first != NULL) dw_first = dw_first->next;
+                     dw_cur = dw_cur->next;
+                  }
+                  fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                          dw_cur);
+               }
+            } else {
+               if ((lw_cur != NULL) && (lw_cur->next != NULL)) {
+                  if (lw_pos < (listwin->_maxy - 2)) { /* no scroll */
+                     lw_pos++;
+                     lw_cur = lw_cur->next;
+                  } else { /* scroll */
+                     if (lw_first != NULL) lw_first = lw_first->next;
+                     lw_cur = lw_cur->next;
+                  }
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                          lw_cur);
+               }
+            }
+            break;
+
+         case KEY_LEFT: /* remove item (only if in playlist win) */
+            if (win == 0) {
+               initDirlist("..", &dirlist);
+               sortList(dirlist);
+               dw_pos = 0;
+               if (dirlist != NULL) {
+                  dw_first = dirlist->head;
+                  dw_cur = dirlist->head;
+               }
+               fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                       dw_cur);
+
+            } else if ((win == 1) && (lw_cur != NULL)) {
+               /* if we are currently playing then we need to adjust
+                  the pointer to the current playing song */
+               if (curSong == lw_cur) { 
+                  if (lw_cur->next != NULL) playerNext();
+                  else if (lw_cur->prev != NULL) playerPrev();
+                  else { playerStop(); curSong = NULL; lastSong = NULL; }
+               }
+               itm = lw_cur;
+
+               if (lw_cur->next != NULL) lw_cur = lw_cur->next;
+               else if (lw_cur->prev != NULL) lw_cur = lw_cur->prev;
+               else lw_cur = NULL;
+
+               if (lw_pos == 0) {
+                  if (lw_first->next != NULL) lw_first = lw_first->next;
+                  else if (lw_first->prev != NULL) lw_first = lw_first->prev;
+                  else lw_first = NULL;
+               }
+
+               if ((itm->next == NULL) && (lw_pos != 0)) lw_pos--;
+
+               deleteItem(itm, &playlist);
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur);
+            }
+            break;
+
+         case KEY_RIGHT: /* browse to new dir or add to playlist*/
+            if (win == 0) {
+               if (isfile(dw_cur)) {
+                  addItem(copyItem(dw_cur), &playlist);
+                  if (lw_first == NULL) lw_first = playlist->head;
+                  if (lw_cur == NULL) lw_cur = playlist->head;
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                          NULL);
+               } else {
+                  initDirlist(dw_cur->name, &dirlist);
+                  sortList(dirlist);
+                  dw_pos = 0;
+                  if (dirlist != NULL) {
+                     dw_first = dirlist->head;
+                     dw_cur = dirlist->head;
+                  }
+                  fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                          dw_cur);
+               }
+            } else {
+               if (lw_cur != NULL)
+                  playerPlay(lw_cur);
+            }
+            break;
+
+         case '\t': /* use tab to move between windows */
+            if (win == 1) {
+               win = 0;
+               pos = &dw_pos;
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       NULL);
+               fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                       dw_cur);
+            } else {
+               win = 1;
+               pos = &lw_pos;
+               fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                       NULL);
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur);
+            }
+            break;
+
+         case 'r': /* r to randomize the playlist */
+            playlist = randomizeList(&playlist);
+            if (playlist != NULL) {
+               lw_first = playlist->head;
+               lw_cur = playlist->head;
+            }
+            lw_pos = 0;
+            if (win == 1)
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur);
+            else
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       NULL);
+            break;
+
+         case 'o': /* sort (order) the playlist */
+            sortList(playlist);
+            if (playlist != NULL) {
+               lw_first = playlist->head;
+               lw_cur = playlist->head;
+            }
+            lw_pos = 0;
+            if (win == 1)
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur);
+            else
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       NULL);
+            break;
+
+         case 'u': /* move song up in playlist */
+            if (win ==1) {
+               if ((playlist != NULL) && (lw_cur != NULL) &&
+                   (lw_cur->prev != NULL)) {
+                  swapItems(playlist, lw_cur->prev, lw_cur);
+
+                  if (lw_pos > 0) lw_pos--;
+                  if (lw_pos == 0) lw_first = lw_cur;
+
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                          lw_cur);
+               }
+            }
+            break;
+
+         case 'd': /* move song down in playlist */
+            if (win ==1) {
+               if ((playlist != NULL) && (lw_cur != NULL) &&
+                   (lw_cur->next != NULL)) {
+                  swapItems(playlist, lw_cur, lw_cur->next);
+
+                  if (lw_pos == 0) lw_first = lw_cur->prev;
+                  if (lw_pos < (listwin->_maxy - 2)) lw_pos++;
+                  else lw_first = lw_first->next;
+
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                          lw_cur);
+               }
+            }
+            break;
+
+         case 12: /* ctrl-l (refresh) */
+            finishEditor();
+            initEditor();
+            if (win == 0) {
+               fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                       dw_cur);
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       NULL);
+            } else {
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_first);
+               fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                       NULL);
+            }
+            if (helpwin != NULL) {
+               toggleHelpWin();
+               toggleHelpWin();
+            }
+            break;
+
+         default:
+            break;
+      }
+      wnoutrefresh(dirwin);
+      wnoutrefresh(listwin);
+      if (helpwin != NULL) {
+         touchwin(helpwin);
+         wnoutrefresh(helpwin);
+      }
+      doupdate();
+
+   }
+
+   finishEditor();
+
+   return(func);
 
 }
 
 /*
- * this is the  main function. it does some initial setup and then passes
- * things over to the playlist editor. also responsible for switching
- * between modes within the program.
+ * adds the given mp3 filename onto the playlist (if file exists).
+ */
+int addMp3(char *mp3) {
+   char cwd[MAX_STRLEN];
+   ITEM *item = NULL;
+   char *ptr = NULL;
+   struct stat dstat;
+   int ret = 0;
+
+   if (strlen(mp3) > 3) {
+
+      ptr = (char *)malloc(sizeof(char)*MAX_STRLEN);
+      if (ptr == NULL) die("addMp3: malloc failure\n");
+
+      if (mp3[0] != '/') {
+         getcwd(cwd, MAX_STRLEN);
+         sprintf(ptr, "%s/%s", cwd, mp3);
+      } else {
+         sprintf(ptr, "%s", mp3);
+      }
+
+      item = (ITEM *)malloc(sizeof(ITEM));
+      if (item == NULL) die("addMp3: malloc failure\n");
+
+      item->path = ptr;
+      item->name = rindex(ptr, '/');
+      item->info = NULL;
+      item->next = NULL;
+      item->prev = NULL;
+      item->isfile = TRUE;
+
+      if (item->name != NULL) item->name++;
+      else die("addMp3: invalid filename \"%s\"\n", ptr);
+
+      if(stat(item->path, &dstat) == 0) {
+         getID3(item);
+         addItem(item, &playlist);
+         debug("addMp3: added %s\n", item->name);
+      } else {
+         free(ptr);
+         free(item);
+      }
+   }
+
+   return(ret);
+}
+
+/*
+ * reads in a .m3u playlist file and adds entries into the internal
+ * playlist.
+ */
+int readM3u(char *filename) {
+
+   int ret = 0;
+   FILE *infile = NULL;
+   char *ptr = NULL;
+   char *err = NULL;
+   char *tmp = NULL;
+   ITEM *item = NULL;
+   struct stat dstat;
+
+   if(!(infile = fopen(filename, "r"))) {
+      debug("readM3u: cant open playlist \"%s\"\n", filename);
+      ret = -1;
+   } else {
+      debug("readM3u: reading \"%s\"\n", filename);
+      while(!feof(infile)) {
+
+         ptr = (char *)malloc(sizeof(char)*MAX_STRLEN);
+         if (ptr == NULL) die("readM3u: malloc error\n");
+
+         err = fgets(ptr, sizeof(char)*MAX_STRLEN, infile);
+
+         if (err != NULL) {
+
+            tmp = index(ptr, '\n');
+            if (tmp != NULL) *tmp = '\0';
+
+            item = (ITEM *)malloc(sizeof(ITEM));
+            if (item == NULL) die("readM3u: malloc failure\n");
+
+            item->path = ptr;
+            item->name = rindex(ptr, '/');
+            item->info = NULL;
+            item->next = NULL;
+            item->prev = NULL;
+            item->isfile = TRUE;
+
+            if (item->name != NULL) item->name++;
+            else die("readM3u: invalid filename \"%s\"\n", ptr);
+
+            if(stat(item->path, &dstat) == 0) {
+               getID3(item);
+               addItem(item, &playlist);
+               debug("readM3u: added %s\n", item->name);
+            } else {
+               free(ptr);
+               free(item);
+            }
+         }
+      }
+
+      fclose(infile);
+      ret = 0;
+   }
+
+   return(ret);
+
+}
+
+/*
+ * writes a .m3u playlist file from the internal playlist.
+ */
+int writeM3u(char *filename) {
+
+   int ret = 0;
+   FILE *outfile = NULL;
+   ITEM *item = NULL;
+
+   if(!(outfile = fopen(filename, "w"))) {
+      debug("writeM3u: cant open playlist \"%s\" for writing\n", filename);
+      ret = -1;
+   } else {
+
+      if (playlist != NULL) {
+         item = playlist->head;
+
+         while(item != NULL) {
+            fprintf(outfile, "%s\n", item->path);
+            item = item->next;
+         }
+
+      }
+
+      fclose(outfile);
+      ret = 0;
+   }
+
+   return(ret);
+
+}
+
+/*
+ * updates parts of the current songs AudioInfo struct
+ */
+void updateInfo(AudioInfo *data, int info) {
+   debug("updateInfo called\n");
+   if ((curSong != NULL) && (curSong->info != NULL)) {
+      if (info == INFO_BITRATE)
+         curSong->info->bitrate = data->bitrate;
+      else if (info == INFO_FREQUENCY)
+         curSong->info->frequency = data->frequency;
+      else if (info == INFO_MODE)
+         curSong->info->mode = data->mode;
+      else if (info == INFO_CRC)
+         curSong->info->crc = data->crc;
+      else if (info == INFO_COPYRIGHT)
+         curSong->info->copyright = data->copyright;
+      else if (info == INFO_ORIGINAL)
+         curSong->info->original = data->original;
+      else if (info == INFO_IDENT)
+         if (curSong->info->ident != NULL) free(curSong->info->ident);
+         curSong->info->ident = strdup(data->ident);
+   }
+}
+
+/*
+ * sets the audio info for the current song and calls updateInfoWin to
+ * update the info window if it is being displayed.
+ */
+void updateAudioInfo(AudioInfo *inf) {
+
+   /* neither should never be null if this is being called...  */
+   if ((curSong != NULL) && (inf != NULL)) {
+      curSong->info = (AudioInfo *)malloc(sizeof(AudioInfo));
+      memcpy(curSong->info, inf, sizeof(AudioInfo));
+      curSong->length = get_time(inf);
+      updateInfoWin();
+      updateMiniWin(curSong);
+   }
+}
+
+/*
+ * updates the song time display
+ */
+void updateSongTime(int cur_frame) {
+   char tmpstr[20];
+   int minutes = 0;
+   int seconds = 0;
+
+   if ((titlewin != NULL) && (curSong != NULL)) {
+      seconds = (cur_frame*32)/1225;
+ 
+      /* if the player doesnt send info then we cant do remaining time */
+      if ((configuration.timeMode == ELAPSED) || (curSong->info == NULL)) {
+         minutes = seconds / 60;
+         seconds = seconds % 60;
+
+         if (minutes > 99) {
+            minutes = 99;
+            seconds = 59;
+         }
+
+         sprintf(tmpstr, "[%3d:%02d] ", minutes, seconds);
+      } else {
+         seconds = curSong->length - seconds;
+ 
+         if (seconds < 0) seconds = 0;
+
+         minutes = -(seconds / 60);
+         seconds = seconds % 60;
+
+         if (abs(minutes) > 99) {
+            minutes = -99;
+            seconds = 59;
+         }
+
+         if (minutes == 0) {
+            sprintf(tmpstr, "[ -0:%02d] ", seconds);
+         } else {
+            sprintf(tmpstr, "[%3d:%02d] ", minutes, seconds);
+         }
+      }
+      mvwaddstr(titlewin, 1, 2, tmpstr);
+      wnoutrefresh(titlewin);
+      doupdate();
+   }
+}
+
+/*
+ * updates the position in the song as a percentage (ie: 0 <= pos <= 1)
+ */
+void updateSongPosition(double pos) {
+   int i, j;
+   char tmpstr[MAX_STRLEN];
+
+   if (func == PLAYER) {
+      j = (progwin->_maxx - 1)*pos;
+      for (i = 0; i < (progwin->_maxx - 1); i++) {
+         if (i < j)
+            tmpstr[i] = '=';
+         else if (i == j)
+            tmpstr[i] = '|';
+         else /* (i > j) */
+            tmpstr[i] = '-';
+      }
+      tmpstr[progwin->_maxx - 1] = '\0';
+      mvwaddstr(progwin, 1, 1, tmpstr);
+      wnoutrefresh(progwin);
+      doupdate();
+   }
+}
+
+/*
+ * opens a given song and returns the file descriptor
+ */
+int songOpen(ITEM *item) {
+
+   int fd = 0;
+
+   if (item != NULL)
+      fd = open(item->path, O_RDONLY);
+
+   return fd;
+
+}
+
+/*
+ * calculates song size
+ */
+int songSize(ITEM *item) {
+   struct stat dstat;
+   int ret = 0;
+
+   if(stat(item->path, &dstat) == 0)
+      ret = dstat.st_size;
+   else
+      ret = 0;
+
+   return ret;
+}
+
+/*
+ * resets an AudioInfo structure
+ */
+void infoReset(AudioInfo *info) {
+   info->bitrate = 0;
+   info->frequency = 0;
+   info->stereo = 0;
+   info->type = 0;
+   info->sample = 0;
+   info->mode = 0;
+   info->crc = 0;
+   info->copyright = 0;
+   info->original = 0;
+   info->ident = NULL;
+}
+
+/*
+ * displays the filename for the indicated song
+ */
+void updatePlaying(ITEM *sng) {
+   debug("updatePlaying:sng->name=%s\n", sng->name);
+   showFilename(titlewin, sng);
+}
+
+/*
+ * clears filename and progress windows
+ */
+void updateStopped() {
+   debug("updateStopped: clearing progwin and titlewin\n");
+
+   if (func == PLAYER) {
+      wclear(titlewin);
+      box(titlewin, 0, 0);
+      wclear(progwin);
+      box(progwin, 0, 0);
+      wnoutrefresh(titlewin);
+      wnoutrefresh(progwin);
+      updateInfoWin();
+      doupdate();
+   }
+}
+
+/*
+ * writes the filename in the title window
+ */
+void showFilename(WINDOW *win, ITEM *itm) {
+   char *tmp = NULL;
+   if ((win != NULL) && (itm != NULL)) {
+      tmp = strpad(itm, win->_maxx - 11);
+      mvwaddstr(win, 1, 11, tmp);
+      wnoutrefresh(win);
+      doupdate();
+   }
+}
+
+/*
+ * toggles the display of the help window
+ */
+void toggleHelpWin() {
+   int x_offset = 0, y_offset = 0;
+   int helpWidth = 50, helpHeight = 12;
+   char buf[MAX_STRLEN];
+
+   if (helpwin == NULL) { /* no help showing currently, so display it */
+
+      x_offset = (COLS - helpWidth) / 2;
+      y_offset = (LINES - helpHeight) / 2;
+
+      if (x_offset < 0) x_offset = 0;
+      if (y_offset < 0) y_offset = 0;
+
+      helpwin = newwin(helpHeight, helpWidth, y_offset, x_offset);
+      if (helpwin == NULL) die("toggleHelp: newwin failure\n");
+      box(helpwin, 0, 0);
+
+      if (func == PLAYER) {
+
+         strcpy(buf, "p: play                 s: stop");
+         mvwaddstr(helpwin, 2, 3, buf);
+         strcpy(buf, "f: start/end ffwd       r: start/end rew");
+         mvwaddstr(helpwin, 3, 3, buf);
+         strcpy(buf, "n: next                 v: prev");
+         mvwaddstr(helpwin, 4, 3, buf);
+         strcpy(buf, "a: pause                q: quit");
+         mvwaddstr(helpwin, 5, 3, buf);
+         strcpy(buf, "l: goto playlist        h: toggle help");
+         mvwaddstr(helpwin, 7, 3, buf);
+         strcpy(buf, "m: toggle mini-list     t: toggle time");
+         mvwaddstr(helpwin, 8, 3, buf);
+         strcpy(buf, "i: toggle info          R: cycle repeat mode");
+         mvwaddstr(helpwin, 9, 3, buf);
+
+      } else { /* PLAYLIST */
+
+         strcpy(buf, "a: add all files        A: add recursively");
+         mvwaddstr(helpwin, 1, 3, buf);
+         strcpy(buf, "left: remove/cd ..      right: add/chdir/play");
+         mvwaddstr(helpwin, 2, 3, buf);
+         strcpy(buf, "space: page down        -: page up");
+         mvwaddstr(helpwin, 3, 3, buf);
+         strcpy(buf, "down: move down         up: move up");
+         mvwaddstr(helpwin, 4, 3, buf);
+         strcpy(buf, "u: move song up         d: move song down");
+         mvwaddstr(helpwin, 5, 3, buf);
+         strcpy(buf, "r: randomize list       o: sort list");
+         mvwaddstr(helpwin, 6, 3, buf);
+         strcpy(buf, "l: load playlist        s: save playlist");
+         mvwaddstr(helpwin, 7, 3, buf);
+         strcpy(buf, "c: clear playlist       h: toggle this help");
+         mvwaddstr(helpwin, 8, 3, buf);
+         strcpy(buf, "q: quit                 p: goto player");
+         mvwaddstr(helpwin, 9, 3, buf);
+         strcpy(buf, "tab: switch windows");
+         mvwaddstr(helpwin, 10, 3, buf);
+
+      }
+      wnoutrefresh(helpwin);
+
+   } else { /* help being displayed, so destroy it */
+
+      if (func == PLAYER) {
+         delwin(helpwin);
+         touchwin(mainwin);
+         helpwin = NULL;
+         refresh();
+         wnoutrefresh(mainwin);
+         if (infowin != NULL) {
+            touchwin(infowin);
+            wnoutrefresh(infowin);
+         }
+         if (miniwin != NULL) {
+            touchwin(miniwin);
+            wnoutrefresh(miniwin);
+         }
+      } else { /* PLAYLIST */
+         delwin(helpwin);
+         touchwin(dirwin);
+         touchwin(listwin);
+         helpwin = NULL;
+         refresh();
+         wnoutrefresh(dirwin);
+         wnoutrefresh(listwin);
+      }
+
+   }
+
+   doupdate();
+}
+
+/*
+ * updates the contents of the info window. used by toggleInfoWin and by
+ * updateupdateAudioInfo.
+ */
+void updateInfoWin() {
+   char buf[MAX_STRLEN];
+   int min = 0, sec = 0;
+
+   /* info showing currently, so update it */
+   if ((infowin != NULL) && (func == PLAYER)) {
+
+      wclear(infowin);
+      box(infowin, 0, 0);
+
+      strcpy(buf, "length:                size:");
+      mvwaddstr(infowin, 1, 3, buf);
+
+      strcpy(buf, "bitrate:               frequency:");
+      mvwaddstr(infowin, 2, 3, buf);
+      strcpy(buf, "stereo:                type:");
+      mvwaddstr(infowin, 3, 3, buf);
+
+      strcpy(buf, "song: ");
+      mvwaddstr(infowin, 5, 3, buf);
+      strcpy(buf, "artist: ");
+      mvwaddstr(infowin, 6, 3, buf);
+      strcpy(buf, "album: ");
+      mvwaddstr(infowin, 7, 3, buf);
+
+      strcpy(buf, "year:                  genre:");
+      mvwaddstr(infowin, 8, 3, buf);
+      strcpy(buf, "comment: ");
+      mvwaddstr(infowin, 9, 3, buf);
+      strcpy(buf, "track: ");
+      mvwaddstr(infowin, 10, 3, buf);
+
+      if ((curSong != NULL) && (curState & playState)) {
+
+         if (curSong->info != NULL) {
+            sprintf(buf, "%d", curSong->info->bitrate);
+            mvwaddstr(infowin, 2, 12, buf);
+
+            sprintf(buf, "%d", curSong->info->frequency);
+            mvwaddstr(infowin, 2, 37, buf);
+
+            if (curSong->info->stereo == 2) strcpy(buf, "yes");
+            else strcpy(buf, "no ");
+            mvwaddstr(infowin, 3, 11, buf);
+
+            if (curSong->info->type == 1) strcpy(buf, "Layer 1");
+            else if (curSong->info->type == 2) strcpy(buf, "Layer 2");
+            else if (curSong->info->type == 3) strcpy(buf, "Layer 3");
+            else if (curSong->info->type == 4) strcpy(buf, "Wav");
+            else strcpy(buf, "?");
+            mvwaddstr(infowin, 3, 32, buf);
+         }
+
+         if (curSong->id3 != NULL) {
+            strcpy(buf, curSong->id3->songname);
+            mvwaddstr(infowin, 5, 9, buf);
+
+            strcpy(buf, curSong->id3->artist);
+            mvwaddstr(infowin, 6, 11, buf);
+
+            strcpy(buf, curSong->id3->album);
+            mvwaddstr(infowin, 7, 10, buf);
+
+            strcpy(buf, curSong->id3->year);
+            mvwaddstr(infowin, 8, 9, buf);
+
+            if (curSong->id3->genre < genre_count) {
+               strcpy(buf, genre_table[curSong->id3->genre]);
+               mvwaddstr(infowin, 8, 33, buf);
+            }
+
+            strcpy(buf, curSong->id3->comment);
+            mvwaddstr(infowin, 9, 12, buf);
+
+            if (curSong->id3->track != 0) {
+               sprintf(buf, "%d", curSong->id3->track);
+               mvwaddstr(infowin, 10, 10, buf);
+            }
+
+         }
+
+         sec = curSong->length - sec;
+         
+         if (sec < 0) sec = 0;
+      
+         min = sec / 60;
+         sec = sec % 60;
+
+         sprintf(buf, "%d:%02d", min, sec);
+         mvwaddstr(infowin, 1, 11, buf);
+
+         sprintf(buf, "%d bytes", curSong->size);
+         mvwaddstr(infowin, 1, 32, buf);
+
+      }
+      wnoutrefresh(infowin);
+      doupdate();
+   }
+}
+
+/*
+ * toggles the track info window open/closed.
+ */
+void toggleInfoWin() {
+   int x_offset = 0, y_offset = 0;
+   int infoWidth = 50, infoHeight = 12;
+
+   if (func == PLAYER) {
+
+      if (infowin == NULL) { /* no info showing currently, so display it */
+
+         x_offset = (mainwin->_maxx - infoWidth) / 2;
+         y_offset = (mainwin->_maxy - infoHeight) / 2;
+         x_offset += mainwin->_begx + 1;
+         y_offset += mainwin->_begy + 1;
+
+         if (x_offset < 0) x_offset = 0;
+         if (y_offset < 0) y_offset = 0;
+
+         infowin = newwin(infoHeight, infoWidth, y_offset, x_offset);
+         if (infowin == NULL) die("toggleInfoWin: newwin failure\n");
+
+         updateInfoWin();
+
+      } else { /* info being displayed, so destroy it */
+
+         delwin(infowin);
+         touchwin(mainwin);
+         infowin = NULL;
+
+         refresh();
+         wnoutrefresh(mainwin);
+         if (helpwin != NULL) {
+            touchwin(helpwin);
+            wnoutrefresh(helpwin);
+         }
+         if (miniwin != NULL) {
+            touchwin(miniwin);
+            wnoutrefresh(miniwin);
+         }
+      }
+
+      doupdate();
+
+   }
+}
+
+/*
+ * updates the contents of the track mini-list window. used by
+ * toggleMiniWin and playPlaylist();
+ */
+void updateMiniWin(ITEM *mw_first) {
+
+   if (miniwin != NULL) { /* mini showing currently, so update it */
+
+      if (func == PLAYER) {
+
+         wclear(miniwin);
+         box(miniwin, 0, 0);
+
+         if (mw_first->prev != NULL) {
+            if (mw_first->prev->prev != NULL) {
+               fillwin(miniwin, mw_first->prev->prev, playlist,
+                       miniwin->_maxy - 2, curSong);
+            } else {
+               fillwin(miniwin, mw_first->prev, playlist,
+                       miniwin->_maxy - 2, curSong);
+            }
+         } else {
+            fillwin(miniwin, mw_first, playlist, miniwin->_maxy - 2,
+                    curSong);
+         }
+         wnoutrefresh(miniwin);
+         doupdate();
+      }
+   }
+}
+
+/*
+ * toggles the track mini-list window open/closed.
+ */
+void toggleMiniWin() {
+   int x_offset = 0, y_offset = 0;
+   int miniWidth = 60, miniHeight = 7;
+   ITEM *ret = NULL;
+
+   if (playlist != NULL) {
+      if (func == PLAYER) {
+         if (miniwin == NULL) { /* no mini-list showing currently, so display it */
+
+            x_offset = (mainwin->_maxx - miniWidth) / 2;
+            y_offset = (mainwin->_maxy - miniHeight) / 2;
+            x_offset += mainwin->_begx + 1;
+            y_offset += mainwin->_begy;
+
+            if (x_offset < 0) x_offset = 0;
+            if (y_offset < 0) y_offset = 0;
+
+            miniwin = newwin(miniHeight, miniWidth, y_offset, x_offset);
+            if (miniwin == NULL) die("toggleMiniWin: newwin failure\n");
+
+            if (curSong != NULL)
+               ret = curSong;
+            else
+               ret = playlist->head;
+
+            updateMiniWin(ret);
+
+         } else { /* miniwin being displayed, so destroy it */
+
+            delwin(miniwin);
+            touchwin(mainwin);
+            miniwin = NULL;
+
+            refresh();
+            wnoutrefresh(mainwin);
+            if (helpwin != NULL) {
+               touchwin(helpwin);
+               wnoutrefresh(helpwin);
+            }
+            if (infowin != NULL) {
+               touchwin(infowin);
+               wnoutrefresh(infowin);
+            }
+         }
+      }
+   }
+
+   doupdate();
+}
+
+/*
+ * displays the gamp logo in the center of the window! :)
+ */
+void showLogo(WINDOW *win, int height, int width) {
+   int i = 0, x_offset = 0, y_offset = 0;
+
+   if (height > 0) {
+      x_offset = (width - configuration.logoWidth) / 2;
+      y_offset = (height - configuration.logoHeight) / 2;
+
+      x_offset -= win->_begx;
+      y_offset -= win->_begy;
+
+      if (x_offset < 0) x_offset = 0;
+      if (y_offset < 0) y_offset = 0;
+
+      for (i = 0; i < configuration.logoHeight; i++) {
+         mvwaddstr(win, i+y_offset, x_offset, configuration.logo[i]);
+      }
+   }
+}
+
+/*
+ * returns a pointer to the next song or NULL if there isnt another. takes
+ * into account the current repeat mode.
+ */
+ITEM *getNextSong() {
+
+   ITEM *next = NULL;
+
+   if (curSong != NULL) {
+      if (configuration.repeatMode == repeatNone) {
+         next = curSong->next;
+      } else if (configuration.repeatMode == repeatOne) {
+         next = curSong;
+      } else if (configuration.repeatMode == repeatAll) {
+         if (curSong->next == NULL)
+            next = playlist->head;
+         else
+            next = curSong->next;
+      }
+   }
+
+   return(next);
+
+}
+
+/*
+ * returns a pointer to the prev song or NULL if there isnt one. takes
+ * into account the current repeat mode.
+ */
+ITEM *getPrevSong() {
+
+   ITEM *prev = NULL;
+
+   if (curSong != NULL) {
+      if (configuration.repeatMode == repeatNone) {
+         prev = curSong->prev;
+      } else if (configuration.repeatMode == repeatOne) {
+         prev = curSong;
+      } else if (configuration.repeatMode == repeatAll) {
+         if (curSong->prev == NULL)
+            prev = playlist->tail;
+         else
+            prev = curSong->prev;
+      }
+   }
+   return(prev);
+
+}
+
+/*
+ * initializes thee users gamp configuration. will create the ~/.gamp/
+ * directory and write the default configuration and logo there. can also
+ * be used to revert to defaults if you break something in the config
+ * file.
+ */
+void newSetup(CONFIGURATION *config) {
+
+   char *env_ptr = NULL;
+   char *path = NULL;
+   int ans = 0;
+   struct stat dstat;
+
+   env_ptr = getenv("HOME");
+   if (env_ptr != NULL) {
+
+      path = (char *)malloc(sizeof(char)*(strlen(env_ptr)+7));
+      if (path == NULL) die("newSetup: malloc failure\n");
+      strcpy(path, env_ptr);
+      strcat(path, "/.gamp");
+
+      if (stat(path, &dstat) == 0) {
+         printf("your ~/.gamp/ directory already exists.\n");
+         printf("should i reset your preferences ([y]/n)? ");
+         ans = getchar();
+         if ((ans == 'y') || (ans == '\n')) {
+            config->configFile = (char *)malloc(sizeof(char) *
+                                                (strlen(path) + 8));
+            if (config->configFile == NULL)
+               die("newSetup: malloc failure\n");
+            strcpy(config->configFile, path);
+            strcat(config->configFile, "/gamprc");
+
+            config->logoFile = (char *)malloc(sizeof(char) *
+                                              (strlen(path) + 11));
+            if (config->logoFile == NULL)
+               die("newSetup: malloc failure\n");
+            strcpy(config->logoFile, path);
+            strcat(config->logoFile, "/gamp.logo");
+
+            writePrefs(NULL, config);
+
+            initLogo(config);
+            writeLogo(NULL, config);
+         }
+      } else {
+         printf("creating your ~/.gamp/ directory.\n");
+         if (mkdir(path, 448) == 0) { /* 448 dec = 700 oct = drwx------ */
+            printf("directory created. writing preferences.\n");
+
+            config->configFile = (char *)malloc(sizeof(char) *
+                                                (strlen(path) + 8));
+            if (config->configFile == NULL)
+               die("newSetup: malloc failure\n");
+            strcpy(config->configFile, path);
+            strcat(config->configFile, "/gamprc");
+
+            config->logoFile = (char *)malloc(sizeof(char) *
+                                              (strlen(path) + 11));
+            if (config->logoFile == NULL)
+               die("newSetup: malloc failure\n");
+            strcpy(config->logoFile, path);
+            strcat(config->logoFile, "/gamp.logo");
+
+            writePrefs(NULL, config);
+
+            initLogo(config);
+            writeLogo(NULL, config);
+         } else {
+            die("newSetup: error creating directory \"%s\"\n", path);
+         }
+      }
+   } else {
+      die("newSetup: HOME undefined? somethings wrong...\n");
+   }
+}
+
+/*
+ * processes the command line arguments.
+ */
+void processArgs(int argc, char **argv, CONFIGURATION *config) {
+
+   int i = 1;
+
+   while (i < argc) {
+
+      if ((strcmp(argv[i], "-c") == 0) ||
+          (strcmp(argv[i], "--config") == 0)) {
+         if (i + 1 < argc) {
+            i++;
+            config->configFile = strdup(argv[i]);
+         } else {
+            displayUsage();
+            exit(-1);
+         }
+
+      } else if ((strcmp(argv[i], "-l") == 0) ||
+          (strcmp(argv[i], "--logo") == 0)) {
+         if (i + 1 < argc) {
+            i++;
+            config->logoFile = strdup(argv[i]);
+         } else {
+            displayUsage();
+            exit(-1);
+         }
+
+      } else if ((strcmp(argv[i], "-d") == 0) ||
+          (strcmp(argv[i], "--dir") == 0)) {
+         if (i + 1 < argc) {
+            i++;
+            sdir = strdup(argv[i]);
+         } else {
+            displayUsage();
+            exit(-1);
+         }
+
+      } else if ((strcmp(argv[i], "-h") == 0) ||
+                 (strcmp(argv[i], "--help") == 0)) {
+         displayUsage();
+         exit(0);
+
+      } else if ((strcmp(argv[i], "-p") == 0) ||
+                 (strcmp(argv[i], "--play") == 0)) {
+         func = GOPLAY;
+
+      } else if ((strcmp(argv[i], "-v") == 0) ||
+                 (strcmp(argv[i], "--version") == 0)) {
+         displayVersion();
+         exit(0);
+
+      } else if ((strcmp(argv[i], "-s") == 0) ||
+                 (strcmp(argv[i], "--setup") == 0)) {
+         newSetup(config);
+
+      } else if (ism3u(argv[i])) {
+         readM3u(argv[i]);
+
+      } else if (ismp3(argv[i])) {
+         addMp3(argv[i]);
+
+      } else {
+         debug("ignoring unknown command line option \"%s\"\n", argv[i]);
+      }
+      i++;
+   }
+
+}
+
+/*
+ * displays program usage
+ */
+void displayUsage() {
+
+   displayVersion();
+   printf("usage: gamp [option(s)] [mp3/m3u file(s)]\n");
+   printf("options: -c, --config filename  load/save config file\n");
+   printf("         -l, --logo filename    load this ascii logo\n");
+   printf("         -d, --dir dirname      start in dirname\n");
+   printf("         -h, --help             display this help info\n");
+   printf("         -v, --version          display version\n");
+   printf("         -p, --play             start playing on startup\n");
+   printf("         -s, --setup            sets up ~/.gamp/\n");
+   printf("see manpage gamp(1) for further information.\n");
+
+}
+
+/*
+ * displays program version
+ */
+void displayVersion() {
+
+   printf("gamp version %d.%d.%d\n", MAJOR, MINOR, PATCH);
+
+}
+
+/*
+ * this is the  main function. it does some initial setup, reads
+ * configuration and logo, forks off the backend player and the message
+ * watching threat, then switches between player and playlist until the
+ * user quits, at which time it calls cleanup() and exits.
  */
 int main(int argc, char **argv) {
 
-    int argPos;
-    int i;
-    char *env_ptr;
+   pthread_t msg_thread; /* the msg watcher thread */
 
-    pthread_mutex_init(&mut, NULL);
-    pthread_mutex_init(&readMut, NULL);
-    pthread_cond_init(&cond, NULL);
+   initPrefs(&configuration); /* initialize preferences */
+   processArgs(argc, argv, &configuration); /* process the command line */
+   readPrefs(NULL, &configuration); /* read prefs */
+   readLogo(NULL, &configuration); /* read logo */
+   dumpPrefs(&configuration); /* dump prefs (for debugging) */
 
-    stop = PLAYLIST;   /* stopping condition for the program */
-    play = STOP;
-    current = -1;
-    filename[0] = '\0';
-    display_spectrum = NO_SPECTRUM;
+   /*
+    * if we got the "-p" command line arg we need to override
+    * configuration.startWith with func, which would default to PLAYLIST
+    * but get changed to GOPLAY if "-p" or "--play" were given on the
+    * command line.
+    */
+   if (func != GOPLAY)
+      func = configuration.startWith;
 
-    time_mode = REMAINING;
+   if (sdir != NULL)
+      chdir(sdir);
 
-    first_loop = TRUE;
-    last_loop = FALSE;
+   curState = stopState;
+   lastSong = NULL;
+   curSong = NULL;
 
-    file_status = CLOSED;
+   initialize(); /* initialize everything else */
+   forkIt(); /* fork the player */
 
-    length = 0;
-    cnt = 0;
+   initscr(); /* ncurses init stuff */
+   cbreak();
+   noecho();
+   nonl();
+   intrflush(stdscr, FALSE);
+   keypad(stdscr, TRUE);
 
-    start_dir[0] = '\0';
- 
-    for (i = 0; i <= NUM_BANDS; i++)
-        bar_heights[i] = 0;
+   signal(SIGINT, cleanup); /* if we get interrupted we want to cleanup */
 
-    argPos = args(argc,argv); /* process command line arguments */
+   /* create the thread that watches (and processes) msgs from player */
+   pthread_create(&msg_thread, NULL, check_msg, NULL);
+   pthread_detach(msg_thread);
 
-    /* premultiply dewindowing tables.  Should go away */
-    premultiply();
+   /* keep going until we quit */
+   while(func != QUIT) {
 
-    /* init imdct tables */
-    imdct_init();
+      if ((func == PLAYER) || (func == GOPLAY))
+         func = playPlaylist();
 
-    if (argPos <= argc) {
+      else if (func == PLAYLIST)
+         func = editPlaylist();
 
-        env_ptr = getenv("GAMPDIR");
+   }
 
-        if (env_ptr != NULL)
-            strcpy(start_dir, env_ptr);
+   /* if the config changed, the write out new config */
+   if (configuration.dirty) writePrefs(NULL, &configuration);
 
-        if (argPos == argc - 1)
-            strcpy(start_dir, argv[argPos]);
+   /* cleanup... */
+   cleanup();
 
-        init_dirlist(start_dir); /* initialize our two lists */
-        init_playlist();
+   /* exit */
+   return(0);
 
-        logo_width = 0;
-        logo_height = 0;
-        read_logo();
+}
 
-        initscr(); /* ncurses init stuff */
-        keypad(stdscr, TRUE);
-        cbreak();
-        noecho();
+/*
+ * does cleanup, ends ncurses and kills the player
+ */
+void cleanup() {
+   signal(SIGINT, SIG_DFL);
+   endwin();
+   playerKill();
+}
 
-        pthread_create(&player_thread, NULL, play_song, NULL);
-        pthread_detach(player_thread);
+/*
+ * checks if the specified file exists. returns TRUE if it does and FALSE
+ * otherwise.
+ */
+int exists(char *filename) {
 
-        while(stop != QUIT) {
+   struct stat dstat;
+   int ret = FALSE;  
 
-            if (stop == PLAYER)
-                stop = play_playlist(argc, argv);
+   if (filename != NULL) {
+      if (stat(filename, &dstat) == 0)
+         ret = TRUE;
+      else
+         ret = FALSE;
+   }
 
-            else if (stop == PLAYLIST)
-                stop = edit_playlist(argc, argv);
-
-        }
-
-        endwin();
-
-    } else
-        displayUsage();
-
-    return 0;
+   return(ret);
 
 }
 

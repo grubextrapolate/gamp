@@ -1,7 +1,0 @@
-FIX ME:
-
-   -put delay in spectrum analyzer. presently displays frame info as it is
-    buffered and NOT as it is displayed. the analyzer is on the back
-    burner right now while other more important features are improved
-   -ffwd and rew not yet functional.
-   -volume wont work if using buffered playback

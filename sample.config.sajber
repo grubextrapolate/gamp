@@ -1,0 +1,28 @@
+# name of the player
+player=sajberplay
+# first argument for the player
+playerArg1=-q
+# second argument for the player
+playerArg2=
+# third argument for the player
+playerArg3=
+# fourth argument for the player
+playerArg4=
+# fifth argument for the player
+playerArg5=
+# display spectrum? TRUE or FALSE
+displaySpectrum=FALSE
+# time mode REMAINING or ELAPSED
+timeMode=REMAINING
+# startup in PLAYER or PLAYLIST
+startWith=PLAYER
+# ignore ID3 tags? TRUE or FALSE
+ignoreID3=FALSE
+# ignore case when sorting? TRUE or FALSE
+ignoreCase=TRUE
+# repeat? repeatNone, repeatOne, or repeatAll
+repeatMode=repeatNone
+# full path to your chosen logo
+logoFile=
+# delay (in milliseconds) between ffwd/rew steps
+stepTimeout=10

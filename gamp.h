@@ -1,135 +1,125 @@
 #ifndef GAMP_H
 #define GAMP_H
 
-#include <curses.h>
+#include "util.h"
+#include "controldata.h"
+#include "id3.h"
+#include "structs.h"
+#include "forkplayer.h"
 #include "list.h"
+#include "gamp-util.h"
+#include "parser.h"
+#include "logo.h"
+#include "input.h"
 
-/* include amp stuff */
-#include "amp.h"
-#include <fcntl.h>
-#include <stdio.h>
-#define AUDIO
-#include "audio.h"
-#include "formats.h"
-#include "getbits.h"
-#include "huffman.h"
-#include "layer3.h"
-#include "transform.h"
-
-/* include our stuff */
-#include "list.h"
-#include <math.h>
-#include <curses.h>
-#include <dirent.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include CURSES_LOC
 #include <pthread.h>
 
-/* include id3 stuff (from id3ren) */
-#include "genre.h" 
+#ifndef TRUE
+  #define TRUE 1
+#endif
+#ifndef FALSE
+  #define FALSE 0
+#endif
 
-#define TAGLEN_TAG 3
-#define TAGLEN_SONG 30
-#define TAGLEN_ARTIST 30
-#define TAGLEN_ALBUM 30
-#define TAGLEN_YEAR 4
-#define TAGLEN_COMMENT 30
-#define TAGLEN_GENRE 1
-  
-typedef struct ID3_struct
-{
-  char tag[TAGLEN_TAG+1];
-  char songname[TAGLEN_SONG+1];
-  char artist[TAGLEN_ARTIST+1];
-  char album[TAGLEN_ALBUM+1];
-  char year[TAGLEN_YEAR+1];
-  char comment[TAGLEN_COMMENT+1];
-  int genre;
-} ID3_tag;
+/* version
+*/
+#define         MAJOR           1
+#define         MINOR           0
+#define         PATCH           0
 
-#define CONT 0
+#define MAX(a,b)  ((a) > (b) ? (a) : (b))
+#define MIN(a,b)  ((a) < (b) ? (a) : (b))
+
+#define MAX_STRLEN 1024
+
 #define QUIT 1
-#define PLAYLIST 2
+#define PLAYLIST 2   
 #define PLAYER 3
+#define GOPLAY 4
 
-#define STOP 4
-#define NEXT 5
-#define PREV 6
-#define FFWD 7
-#define REW 8
-#define PAUSE 9
-#define PLAY 10
-#define START 11
-
-#define OPENED 20
-#define CLOSED 21
+#define repeatNone 0
+#define repeatOne 1
+#define repeatAll 2
 
 #define ELAPSED 30
 #define REMAINING 31
 
-#define NO_SPECTRUM 40
-#define SHOW_SPECTRUM 41
+#define forwardState 1
+#define forwardStep 2 
+#define rewindState 4 
+#define rewindStep 8  
+#define playState 16  
+#define stopState 32  
+#define pauseState 64 
 
-#define NUM_BANDS 18
-extern int bar_heights[32];
+extern void initDirlist(char *, ITEMLIST **);
+extern void finishPlayer();
+extern void initPlayer();
+extern int playPlaylist();
+extern void fillwin(WINDOW *, ITEM *, ITEMLIST *, int, ITEM *);
+extern void finishEditor();
+extern void initEditor();
+extern int editPlaylist();
+extern int addMp3(char *);
+extern int readM3u(char *);
+extern int writeM3u(char *);
+extern void updateInfo(AudioInfo *ai, int type);
+extern void updateAudioInfo(AudioInfo *ai);
+extern void updateSongTime(int time); /* time = frame number */
+extern void updateSongPosition(double pos); /* (percentage, 0..1) */
+extern int songOpen(ITEM *sng); /* attempts to open song and returns file
+                                   descriptor if successful. */
+extern int songSize(ITEM *sng); /* returns length */
+extern void infoReset(AudioInfo *inf); /* resets info to default values? */
+extern void updatePlaying(ITEM *sng);
+extern void updateStopped();
+extern void showFilename(WINDOW *, ITEM *);
+extern void toggleHelpWin();
+extern void updateInfoWin();
+extern void toggleInfoWin();
+extern void updateMiniWin(ITEM *);
+extern void toggleMiniWin();
+extern void showLogo(WINDOW *, int, int);
+extern ITEM *getNextSong();
+extern ITEM *getPrevSong();
+extern void newSetup(CONFIGURATION *);
+extern void processArgs(int, char **, CONFIGURATION *);
+extern void displayUsage();
+extern void displayVersion();
+extern void cleanup();
+extern int exists(char *);
 
-extern char cwd[256];
-extern char tmpstr[150];
+/* playlist editor windows */
+extern WINDOW *dirwin; /* direcory list window */
+extern WINDOW *listwin; /* playlist window */
 
-#define LOGO_X 50
-#define LOGO_Y 20
-extern char logo[LOGO_Y][LOGO_X];
-extern int logo_width;
-extern int logo_height;
+/* player windows */
+extern WINDOW *titlewin; /* song time/title window */
+extern WINDOW *mainwin; /* main window */
+extern WINDOW *progwin; /* progress window */
 
-extern pthread_t player_thread; /* the player thread */
-extern pthread_mutex_t mut;
-extern pthread_cond_t cond;
+/* popup windows */
+extern WINDOW *infowin; /* popup info window */
+extern WINDOW *helpwin; /* popup help window */
+extern WINDOW *miniwin; /* popup mini-list window */
 
-extern int stop;   /* stopping condition for the program */
-extern int play;
-extern int current;
+/* playlist and current directory list */
+extern ITEMLIST *playlist;
+extern ITEMLIST *dirlist;
 
-extern int time_mode;
-extern int length;
+/* player configuration */
+extern CONFIGURATION configuration;
 
-extern int ch;
-extern int currentVolume;
-extern char filename[150];
-extern char tmpstring[150];
-extern char tmpname[150];
-extern char start_dir[150];
+/* current and last-known-playing song */
+extern ITEM *curSong;
+extern ITEM *lastSong;
 
-extern int first_loop;
-extern int last_loop;
-extern struct AUDIO_HEADER header;
-extern int cnt, err;
+/* the msg watcher thread */
+extern pthread_t msg_thread;
 
-/* our windows */
-extern WINDOW *dirwin, *playwin, *helpwin, *titlewin, *mainwin;
-
-extern int file_status;
-extern ID3_tag *ptrtag;
-
-extern void show_filename(WINDOW *, STRLIST *, int);
-extern void clear_filename(WINDOW *);
-extern void statusDisplay(WINDOW *, WINDOW *, int, int, struct AUDIO_HEADER *, int);
-extern int inline processHeader(struct AUDIO_HEADER *, int);
-
-extern int id3_seek_header (FILE *fp, char *fn);
-extern int id3_read_file (char *dest, unsigned long size, FILE *fp, char *fn);
-extern int read_tag (FILE *fp, char *fn);
-extern char *getName(char *filename);
-extern int get_time(struct AUDIO_HEADER *header);
-extern int get_frame_size(struct AUDIO_HEADER *header);
-extern double time_per_frame(struct AUDIO_HEADER *header);
-extern double bits_per_frame(struct AUDIO_HEADER *header);
-extern int ismp3(char *name);
-extern void strtrunc(char *str, int length);
-extern void strtrim(char *string);
-extern void read_logo();
+/* function (PLAYER, PLAYLIST, GOPLAY, QUIT) */
+extern int func;
 
 #endif /* GAMP_H */

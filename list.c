@@ -1,152 +1,478 @@
 #include "list.h"
+#include <sys/stat.h>
+#include <unistd.h>
 
-void grow_list(STRLIST *list) {
-    char **tmpfiles = (char **)malloc(sizeof(char *) * list->max * 2);
-    char **tmpdirs = (char **)malloc(sizeof(char *) * list->max * 2);
-    char **tmpnames = (char **)malloc(sizeof(char *) * list->max * 2);
-    memcpy(tmpfiles, list->files, list->cur*sizeof(char *));
-    memcpy(tmpdirs, list->dirs, list->cur*sizeof(char *));
-    memcpy(tmpnames, list->names, list->cur*sizeof(char *));
-    free(list->files);
-    free(list->dirs);
-    free(list->names);
-    list->files = tmpfiles;
-    list->dirs = tmpdirs;
-    list->names = tmpnames;
-    list->max = list->max * 2;
+#include <string.h>
+#include <dirent.h>
+
+AudioInfo *copyInfo(AudioInfo *orig) {
+   AudioInfo *ret = NULL;
+
+   if (orig != NULL) {
+      ret = (AudioInfo *)malloc(sizeof(AudioInfo));
+      if (ret == NULL) die("copyInfo: malloc error\n");
+
+      memcpy(ret, orig, sizeof(AudioInfo));
+
+      if (orig->ident != NULL) ret->ident = strdup(orig->ident);
+      else ret->ident = NULL;
+   }
+   return(ret);
+
 }
 
-void add(STRLIST *list, char* dir, char *file, char *name) {
-    list->files[list->cur] = strdup(file);
-    list->dirs[list->cur] = strdup(dir);
-    list->names[list->cur++] = strdup(name);
-    if(list->cur == list->max) grow_list(list);
+ITEM *copyItem(ITEM *orig) {
+
+   ITEM *new = NULL;
+
+   if (orig != NULL) {
+      new = (ITEM *)malloc(sizeof(ITEM));
+      if (new == NULL) die("copyItem: malloc error\n");
+      new->path = strdup(orig->path);
+      new->name = strdup(orig->name);
+      new->next = NULL;
+      new->prev = NULL;
+      new->info = copyInfo(orig->info);
+      new->size = orig->size;
+      new->length = orig->length;
+      new->isfile = orig->isfile;
+
+      if (orig->id3 != NULL) {
+         new->id3 = (ID3_tag *)malloc(sizeof(ID3_tag));
+         if (new->id3 == NULL) die("copyItem: malloc failure\n");
+         memcpy((void *)new->id3, (void *)orig->id3, sizeof(ID3_tag));
+      } else {
+         new->id3 = NULL;
+      }
+   }
+   return(new);
 }
 
-void delete(STRLIST *list, int index) {
-    int i;
-    free(list->files[index]);
-    free(list->dirs[index]);
-    free(list->names[index]);
-    for (i = index; i < list->cur - 1; i++) {
-        list->files[i] = list->files[i+1];
-        list->dirs[i] = list->dirs[i+1];
-        list->names[i] = list->names[i+1];
-    }
-    list->cur--;
+ITEM *newItem(char *path, char *name) {
+
+   ITEM *itm = NULL;
+
+   if ((itm = (ITEM *)malloc(sizeof(ITEM))) == NULL) die("malloc failure\n");
+
+   itm->info = NULL;
+   itm->next = NULL;
+   itm->prev = NULL;
+   itm->size = -1;
+   itm->length = -1;
+   itm->id3 = NULL;
+
+   if (name == NULL) { /* directory */
+      itm->isfile = FALSE;
+
+      itm->path = strdup(path);
+
+      itm->name = rindex(itm->path, '/');
+      if (itm->name != NULL) itm->name++;
+      else die("newItem: oops, no / in full path? something's wrong\n");
+
+   } else {
+      itm->isfile = TRUE;
+
+      itm->path = (char *)malloc(sizeof(char)*(strlen(path) + strlen(name) + 2));
+      strcpy(itm->path, path);
+      strcat(itm->path, "/");
+      strcat(itm->path, name);
+
+      itm->name = rindex(itm->path, '/');
+      if (itm->name != NULL) itm->name++;
+      else die("newItem: oops, no / in full path? something's wrong\n");
+
+      getID3(itm);
+   }
+
+   return(itm);
+
 }
 
-void swap(STRLIST *list, int first, int second) {
-    char *tmpPtr;
-    tmpPtr = list->dirs[first];
-    list->dirs[first] = list->dirs[second];
-    list->dirs[second] = tmpPtr;
-    tmpPtr = list->files[first];
-    list->files[first] = list->files[second];
-    list->files[second] = tmpPtr;
-    tmpPtr = list->names[first];
-    list->names[first] = list->names[second];
-    list->names[second] = tmpPtr;
+/*
+ * adds an item to the end of the list
+ */
+void addItem(ITEM *item, ITEMLIST **list) {
+
+   if (*list == NULL) initList(list);
+
+   if ((*list)->head == NULL) { /* no items on list yet */
+      (*list)->head = item;
+      (*list)->tail = item;
+      (*list)->num++;
+   } else { /* at least one item on list */
+      item->prev = (*list)->tail;
+      (*list)->tail->next = item;
+      (*list)->tail = item;
+      (*list)->num++;
+   }
 }
 
-int isdir(STRLIST *list, int entry) {
-    if (strcmp(list->files[entry], "") == 0) return 1;
-    else return 0;
+/*
+ * adds items to the list in an ordered manner. resulting list will have
+ * directories first (alphabetical) followed by files (alphabetical).
+ */
+void addOrdered(ITEM *item, ITEMLIST **list) {
+
+   ITEM *cur = NULL;
+
+   if (*list == NULL) initList(list);
+
+   if ((*list)->head == NULL) { /* no items on list yet */
+      (*list)->head = item;
+      (*list)->tail = item;
+      (*list)->num++;
+   } else { /* at least one item on list */
+
+      cur = (*list)->head;
+      while ((cur != NULL) && (cur->name < item->name))
+         cur = cur->next;
+
+      if (cur == NULL) { /* adding to end of list */
+         item->prev = (*list)->tail;
+         (*list)->tail->next = item;
+         (*list)->tail = item;
+
+      } else { /* add before current item */
+         item->next = cur;
+         item->prev = cur->prev;
+         cur->prev->next = item;
+         cur->prev = item;
+      }
+      (*list)->num++;
+   }
 }
 
-int isfile(STRLIST *list, int entry) {
-    if (strcmp(list->dirs[entry], "") == 0) return 1;
-    else return 0;
+/*
+ * recursive add function
+ */
+void addRecursive(ITEMLIST *src, ITEMLIST **dest) {
+
+   ITEM *itm = NULL;
+   ITEMLIST *tmp = NULL;
+
+   if (src != NULL) {
+
+      if (*dest == NULL) {
+         initList(dest);
+      }
+      itm = src->head;
+      while (itm != NULL) {
+         if (itm->isfile) {
+            addItem(copyItem(itm), dest);
+         } else {
+            if (strcmp(itm->name, "..") != 0) { /* want to ignore .. */
+               initDirlist(itm->path, &tmp);
+               sortList(tmp);
+               addRecursive(tmp, dest);
+            }
+         }
+         itm = itm->next;
+      }
+   }
+   freeList(&tmp);
 }
 
-void sort_list(STRLIST *list) {
+/*
+ * removes the specified item from the given list. first verifies that the
+ * item is actually on the list before removing it.
+ */
+void removeItem(ITEM *item, ITEMLIST **list) {
 
-    int i, j;
-    /* do a bubble sort by both type (dir < file) and by alphabet. */
+   ITEM *cur = NULL;
 
-    for (j = 1; j <= list->cur - 1; j++) {
-        for (i = 0; i <= list->cur - 2; i++) {
+   if ((*list != NULL) && (item != NULL)) {
 
-            /* dir and dir */
-            if (isdir(list,i) && isdir(list,i+1)) {
-                if (strcmp(list->dirs[i], list->dirs[i+1]) > 0)
-                    swap(list, i, i+1);
+      cur = (*list)->head; /* check to make sure item is on this list */
+      while ((cur != item) && (cur != NULL))
+         cur = cur->next;
 
-            /* file and file */
-            } else if (isfile(list, i) && isfile(list,i+1)) {
-                if (strcmp(list->files[i], list->files[i+1]) > 0)
-                    swap(list, i, i+1);
+      if (cur != NULL) { /* item was found on list */
 
-            /* file and dir so swap regardless*/
-            } else if (isfile(list, i) && isdir(list, i+1))
-                    swap(list, i, i+1);
-        }
-    }
+         /* check and adjust list pointers if necessary */
+         if ((*list)->head == item) {
+            (*list)->head = item->next;
+         }
+         if ((*list)->tail == item) {
+            (*list)->tail = item->prev;
+         }
+
+         /* adjust pointers within list */
+         if (item->prev != NULL) {
+            cur = item->prev;
+            cur->next = item->next;
+         }
+         if (item->next != NULL) {
+            cur = item->next;
+            cur->prev = item->prev;
+         }
+
+         item->prev = NULL;
+         item->next = NULL;
+
+         (*list)->num--; /* adjust list item count */
+
+      } else {
+         debug("removeItem: could not find item to remove\n");
+      }
+
+   }
 }
 
-void randomize_list(STRLIST *list, int *current) {
+/*
+ * deletes the specified item from the given list. first verifies that the
+ * item is actually on the list before deleting it.
+ */
+void deleteItem(ITEM *item, ITEMLIST **list) {
 
-    int i, num_items, j;
-    int newcur;
+   removeItem(item, list);
 
-    char **tmpfiles = (char **)malloc(sizeof(char *) * list->max);
-    char **tmpdirs = (char **)malloc(sizeof(char *) * list->max);
-    char **tmpnames = (char **)malloc(sizeof(char *) * list->max);
+   freeItem(item); /* free list item */
 
-    num_items = list->cur;
-    i = 0;
-    newcur = *current;
-
-    for (i = 0; list->cur > 0; i++) {
-
-        /* number from 0 to list->cur - 1 */
-        j = (int) (rand() % list->cur);
-
-        tmpfiles[i] = strdup(list->files[j]);  /* move random item to */
-        tmpdirs[i] = strdup(list->dirs[j]);    /* temp list.          */
-        tmpnames[i] = strdup(list->names[j]);
-        delete(list, j);
-
-        if (j == newcur) {
-            *current = i; /* the current position of the newlist is
-                             playing */
-            newcur = -1; /* dont want to adjust newcur anymore */
-        } else if (j < newcur) {
-            newcur--; /* if we're removing a previous, decrement newcur */
-        }
-
-    }
-
-    free(list->files);
-    free(list->dirs);
-    free(list->names);
-    list->files = tmpfiles;
-    list->dirs = tmpdirs;
-    list->names = tmpnames;
-    list->cur = num_items;
 }
 
-void free_list(STRLIST *list) {
-    if ((list && list->files) || (list && list->dirs)) {
-        while (list->cur--) {
-           free(list->files[list->cur]);
-           free(list->dirs[list->cur]);
-           free(list->names[list->cur]);
-        }
-        free(list->files);
-        free(list->dirs);
-        free(list->names);
-        list->max = 0;
-    }
+/*
+ * swaps two items on a given list. assumes that the items are both on the
+ * list.
+ */
+void swapItems(ITEMLIST *list, ITEM *first, ITEM *second) {
+
+   ITEM *f_p = NULL;
+   ITEM *f_n = NULL;
+   ITEM *s_p = NULL;
+   ITEM *s_n = NULL;
+
+   if ((first != NULL) && (second != NULL) && (list != NULL)) {
+
+      /* adjust list head and tail if necessary */
+      if (list->head == first) {
+         list->head = second;
+      } else if (list->head == second) {
+         list->head = first;
+      }
+      if (list->tail == first) {
+         list->tail = second;
+      } else if (list->tail == second) {
+         list->tail = first;
+      }
+
+      f_p = first->prev;
+      f_n = first->next;
+      s_p = second->prev;
+      s_n = second->next;
+
+      if (first->next == second) {
+
+         if (f_p != NULL) f_p->next = second;
+         first->next = second->next;
+         second->next = first;
+
+         if (s_n != NULL) s_n->prev = first;
+         first->prev = second;
+         second->prev = f_p;
+
+      } else {
+
+         /* adjust next pointers of first and second */
+         first->next = s_n;
+         second->next = f_n;
+
+         /* adjust prev pointers of first and second */
+         first->prev = s_p;
+         second->prev = f_p;
+
+         /* if there are items before or after first adjust their pointers */
+         if (f_p != NULL) f_p->next = second;
+         if (f_n != NULL) f_n->prev = second;
+
+         /* if there are items before or after second adjust their pointers */
+         if (s_p != NULL) s_p->next = first;
+         if (s_n != NULL) s_n->prev = first;
+
+      }
+   }
 }
 
-void init_list(STRLIST *list, int num) {
-    if(list) {
-        list->files = (char **)malloc(sizeof(char *) * num);
-        list->dirs = (char **)malloc(sizeof(char *) * num);
-        list->names = (char **)malloc(sizeof(char *) * num);
-        list->cur = 0;
-        list->max = num;
-    }
+/*
+ * compares two items. will result in ordering alphabetically starting
+ * with directories, then alphabetically by filename.
+ */
+int compItems(ITEM *p1, ITEM *p2) {
+
+   int ret = 0;
+
+   /* dir and dir, so return strcmp */
+   if (!(p1->isfile) && !(p2->isfile)) {
+      if (configuration.ignoreCase)
+         ret = strcasecmp(p1->name, p2->name);
+      else
+         ret = strcmp(p1->name, p2->name);
+
+   /* file and file, so return strcmp */
+   } else if (p1->isfile && p2->isfile) {
+      if (configuration.ignoreCase)
+         ret = strcasecmp(p1->name, p2->name);
+      else
+         ret = strcmp(p1->name, p2->name);
+
+   /* file and dir so file is always greater than dir, return > 0 */
+   } else if (p1->isfile && !(p2->isfile)) {
+      ret = 1;
+
+   /* dir and file so file is always greater than dir, return < 0 */
+   } else {
+      ret = -1;
+   }
+
+   return(ret);
+
 }
 
+/*
+ * checks if the given item is a directory. if it is, the function returns
+ * TRUE, otherwise it returns FALSE.
+ */
+int isdir(ITEM *item) {
+   return(!(item->isfile));
+}
+
+/*
+ * checks if the given item is a file. if it is, the function returns
+ * TRUE, otherwise it returns FALSE.
+ */
+int isfile(ITEM *item) {
+   return(item->isfile);
+}
+
+/*
+ * sorts a given list so that directories are first (alphabetically)
+ * followed by files (alphabetically).
+ */
+void sortList(ITEMLIST *list) {
+
+   ITEM *tmp = NULL;
+   ITEM *p1 = NULL;
+   ITEM *p2 = NULL;
+
+   if (list == NULL) { /* insure there is a list to sort */
+      debug("sortList: null list\n");
+   } else if (list->head == list->tail) { /* only one item, no sorting */
+      debug("sortList: one item list\n");
+   } else {
+      /* do a bubble sort by both type (dir < file) and by alphabet. */
+      for (p1 = list->head; p1->next != NULL; p1 = p1->next) {
+         for (p2 = p1->next; p2 != NULL; p2 = p2->next) {
+
+            if (compItems(p1, p2) > 0) {
+               swapItems(list, p1, p2);
+               tmp = p1;
+               p1 = p2;
+               p2 = tmp;
+            }
+
+         }
+      }
+   }
+}
+
+/*
+ * move item from one list to another
+ */
+void moveItem(ITEM *item, ITEMLIST **list1, ITEMLIST **list2) {
+   removeItem(item, list1);
+
+   addItem(item, list2);
+}
+
+/*
+ * seek (and return) the ith item in a list
+ */
+ITEM *seekItem(int i, ITEMLIST *list) {
+
+   ITEM *ret = NULL;
+   int j = 0;
+
+   if (list != NULL) {
+      ret = list->head;
+      for(j = 0; ((j < i) && (ret != NULL)); j++)
+         ret = ret->next;
+   }
+
+   return(ret);
+}
+
+/*
+ * puts a list in random order.
+ */
+ITEMLIST *randomizeList(ITEMLIST **list) {
+
+   int j = 0;
+   ITEM *item = NULL;
+   ITEMLIST *newlist = NULL;
+
+   if ((*list != NULL) && ((*list)->num > 1)) {
+      initList(&newlist);
+      while ((*list)->num > 0) {
+
+         /* number from 0 to (*list)->num - 1 */
+         j = (int) (rand() % (*list)->num);
+         item = seekItem(j, *list);
+         moveItem(item, list, &newlist);
+
+      }
+
+      freeList(list);
+
+   } else {
+      newlist = *list;
+   }
+
+   return(newlist);
+}
+
+/*
+ * free the memory allocated to a list and all items on it.
+ */
+void freeList(ITEMLIST **list) {
+
+   ITEM *ptr1 = NULL;
+
+   if (*list != NULL) {
+
+      ptr1 = (*list)->head;
+      while (ptr1 != NULL) {
+
+         deleteItem(ptr1, list);
+         ptr1 = (*list)->head;
+
+      }
+      free(*list);
+      *list = NULL;
+   }
+}
+
+/*
+ * allocate and initialize a list
+ */
+void initList(ITEMLIST **list) {
+
+   if (*list == NULL) {
+      (*list) = (ITEMLIST *)malloc(sizeof(ITEMLIST));
+      (*list)->head = NULL;
+      (*list)->tail = NULL;
+      (*list)->num = 0;
+   }
+}
+
+/*
+ * free memory allocated to an item
+ */
+void freeItem(ITEM *item) {
+
+   if (item != NULL) {
+      free(item->path); /* free path. dont need to free name as it should
+                           be a pointer into the path */
+      if (item->id3 != NULL) free(item->id3); /* free id3 (if any) */
+      if (item->info != NULL) free(item->info); /* free info (if any) */
+   }
+}

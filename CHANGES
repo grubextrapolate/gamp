@@ -1,5 +1,36 @@
 CHANGES:
 
+   v1.0.0:
+   -complete rewrite as pure frontend. gamp now requires a sajber jukebox
+    compatible backend player, such as mpg123, amp, or sajberplay
+   -improved playlist:
+      -load/save capability
+      -recursive add
+      -sort/randomize
+      -play from playlist
+      -popup help info
+      -move song up/down
+   -improved player:
+      -improved layout
+      -popup song info
+      -popup help info
+      -popup mini-list of upcoming songs
+      -repeat none/one/all
+      -ffwd/rewind
+   -config file:
+      -load/save specific configuration file
+      -load/save default config file
+      -use default config if no config files found
+      -write config if none exists
+   -logo file:
+      -load specific logo
+      -load default logo
+      -use default logo if no logo file found
+      -write logo if none exists
+   -better command line functionality (including play-on-startup)
+   -man page
+   -gamp setup option (creates ~/.gamp/ and writes default config/logo)
+
    v0.2.3:
    -incorperated a patch from Victor Zandy <zandy@cs.wisc.edu> to fix a
     couple unterminated strings and an array overflow (thanks victor).

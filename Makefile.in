@@ -1,17 +1,35 @@
-# Makefile  - gamp  audio mpeg player v0.2.0
-# russ burdick 1999,2000,2001
-# trannie carter 1999,2000
-# based on amp, tomislav uzelac  1996,1997
+# Makefile  - gamp  audio mpeg player v1.0.0
+# russ burdick 1999-2001
 
-
-#DEBUG = -DDEBUG
+#DEBUG = -DDEBUG -g
 
 # ---- @OS_TYPE@/@ARCH_TYPE@ ----
 
 CC = @CC@
 DEFINES = -DOS_@OS_TYPE@ -DARCH_@ARCH_TYPE@
-CFLAGS = @CFLAGS@ ${DEFINES} ${DEBUG} -g
+CFLAGS = @CFLAGS@ ${DEFINES} ${DEBUG}
 LDFLAGS = @LDFLAGS@
+INSTALL = @INSTALL@
+STRIP = strip
+
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+mandir = @mandir@/man1
+
+ifeq (/usr/include/ncurses/ncurses.h, $(wildcard /usr/include/ncurses/ncurses.h))
+        CFLAGS += -I/usr/include/ncurses -DCURSES_LOC="<ncurses.h>"
+else
+ifeq (/usr/include/ncurses/curses.h, $(wildcard /usr/include/ncurses/curses.h))
+        CFLAGS += -I/usr/include/ncurses -DCURSES_LOC="<ncurses/curses.h>"
+else
+ifeq (/usr/include/ncurses.h, $(wildcard /usr/include/ncurses.h))
+        CFLAGS += -DCURSES_LOC="<ncurses.h>"
+else
+        CFLAGS += -DCURSES_LOC="<curses.h>"
+endif
+endif
+endif
 
 #
 # uncomment both of these if you want profiling support
@@ -23,8 +41,8 @@ LDFLAGS = @LDFLAGS@
 # you should probably leave these untouched ####################################
 #
 
-OBJ = getbits.o getdata.o huffman.o dump.o misc2.o transform.o formats.o layer3.o util.o buffer.o audioIO.o args.o getopt.o getopt1.o list.o gamp.o
-LIBS = -lm -lncurses -lpthread
+OBJ = util.o list.o forkplayer.o gamp.o gamp-util.o parser.o logo.o input.o
+LIBS = @LIBS@
 
 all: gamp
 
@@ -33,15 +51,21 @@ clean:
 	rm -f *.o gamp core
 
 distclean: clean
-	rm -f *~ config.status config.cache config.log config.h Makefile .depend
+	rm -f *~ config.status config.cache config.log config.h Makefile
 
 gamp: $(OBJ) 
 	$(CC) -o gamp $(OBJ) $(LDFLAGS) $(LIBS) 
 
+install: gamp gamp.1
+	$(INSTALL) --mode=0755 gamp $(bindir)
+	$(INSTALL) --mode=0644 gamp.1 $(mandir)
+
+uninstall:
+	rm -f $(bindir)/gamp
+	rm -f $(mandir)/gamp.1
+
+strip: gamp
+	$(STRIP) gamp
+
 .c.o:
 	$(CC) -c $(CFLAGS) $(GGDB) $(PG) $< 
-
-dep:
-	gcc -MM ${DEFINES} ${DEBUG} *.c > .depend
-
--include .depend

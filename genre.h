@@ -21,6 +21,9 @@
 #ifndef __GENRE_H__
 #define __GENRE_H__
 
+extern char *genre_table[];
+extern const int genre_count;
+
 char *genre_table[] = {"Blues",
                        "Classic Rock",
                        "Country",

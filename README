@@ -1,23 +1,18 @@
-gamp ncurses MPEG audio decoder, version 0.2.3
+gamp ncurses MPEG audio decoder, version 1.0.0
 
-grub <wburdick@cs.umn.edu> 1999,2000,2001
-borys <borys@bill3.ncats.net> 1999,2000
-based on amp by Tomislav Uzelac  1996,1997
+grub <wburdick@cs.umn.edu> 1999-2001
 
 1. Introduction
 
-gamp is Graphical AMP. it is an ncurses front end built onto Tomislav
-Uzelac's amp mp3 player and designed to be a true alternative to x windows
-mp3 players. as such it incorperates a playlist browser, play, pause,
-stop, prev, next options. work is in progress on a text-based frequency
-analyzer, fast forward, and rewind functions. more ideas as they come. at
-present this program has been tested only under linux on both the redhat
-and debian distributions. please feel free to drop us a line with
-any suggestions, comments, or bug reports.
-
-the frequency analyzer and time remaining functions were based on elements
-of xmms by Peter Alm, Thomas Nilsson, Olle Hallnas. xmms is available at
-http://www.xmms.org/.
+gamp is Graphical AMP. It started out as an ncurses front end built onto
+Tomislav Uzelac's amp mp3 player and was recently rewritten as a pure
+frontend to sajber jukebox compatible players, such as amp and mpg123. It
+is designed to be a true alternative to x windows mp3 players. As such it
+incorperates a playlist editor, play, pause, stop, prev, next options.
+work is in progress on fast forward, and rewind functions. more ideas as
+they come. at present this program has been tested only under linux on
+both the redhat and debian distributions. please feel free to drop me a
+line with any suggestions, comments, or bug reports.
 
 begining with version 0.2.0 gamp now includes elements of id3ren by Robert
 Alto <badcrc@tscnet.com>. i borrowed some of the functions from his id3
@@ -31,42 +26,110 @@ much about bandwidth.
 
 2. Installation
 
-ok, this works for me so try it yourself and see what happens. let me know
-if you have any trouble.
+In order to use gamp you also need to have a compatible backend player.
+Any player which can act as a backend for the Sajber Jukebox will work as
+i've used the same control mechanisms. The sajber jukebox itself requires
+you to have QT installed, which could be a problem, especially on other
+unicies which dont have QT. amp-0.7.6 has support for acting as a backend
+for the sajber jukebox, but development on it seems to have stopped in
+1997 and efforts to contact the author have been unsuccessful.
+additionally, rewind doesnt work with amp (it actually fast forwrds) and
+the backend doesnt pass song info back to the player so remaining time is
+unavailable and some other song info is missing. The best option, and the
+one I use, is mpg123 compiled with sajber jukebox support. both amp and
+the sajber jukebox should compile 'out of the box' with no additional
+work. there are a couple of simple steps to getting mpg123 to compile as a
+sajber backend.
+
+-obtain the latest version of mpg123 from http://mpg123.com. as of this
+ writing the current version is mpg123-0.59r.
+-expand the tar.gz archive for mpg123-0.59r. you will need to copy two
+ files from this distribution into the mpg123-0.59r tree. assuming you've
+ decompressed both mpg123 and gamp in the same place you should be able to
+ do the following:
+
+	cp gamp-1.0.0/controldata.h gamp-1.0.0/audio.h mpg123-0.59r/jukebox/
+
+now you can enter the mpg123 directory
+
+	cd mpg123-0.59r
+
+and build it as a sajber player
+
+	make linux-sajber
+
+which should work great on linux, but on FreeBSD you'll need to
+
+	make freebsd-sajber
+
+i'd like to hope that the linux build will work on any linux and the
+freebsd build will work on any bsd, but i'm not sure. if you try this on
+something other than linux/freebsd, please let me know so i can make a
+note here.
+
+one note with respect to mpg123-0.59r: there is a very small bug in
+control_sajber.c. change line 144 from:
+
+	mode = MODE_STOPPED;
+to
+	mode = MODE_PAUSED;
+
+or else the rewind function will not work. i've sent email about this to
+the author and expect that it will be included in future releases.
+
+-once one of the above has completed you should have a sajberplay binary
+ in the current directory. you'll need to put this somewhere in your
+ path.
+
+-now on to the good stuff, building and installing gamp. you'll want to:
 
 	./configure
 	make
 
-at this point you can copy the gamp file to wherever you like. may need to
-be root to do this. for example,
+(note for the bsd folks: you'll need GNU make to build this, so substitute
+'make' for 'gmake' throughout. if someone wants to submit a patch to the
+Makefile so that it'll build with both regular and GNU make, i'd be more
+than happy to incorporate this.)
 
-	mv gamp  usr/local/bin
+-at this point you can optionally strip symbols from the binary to
+ reduce its size via:
+
+	make strip
+
+-finally, to install (you may need to be root):
+
+	make install
+
+-optionally, you can then run 'gamp -s' or 'gamp --setup' to have it
+create your ~/.gamp/ directory and put a default config and logo file
+there. this distribution also includes a sample configuration for both
+sajberplay (mpg123) and amp as well as the default and 4 other possible
+logos for your player. take your pick. if you come up with new logos,
+please send them to me so that they can be included in future releases! 16
+lines by 78 columns is the 'default' area you have to work with for a
+standard xterm/console. i'd prefer to keep the logos limited to this size.
+be creative!
 
 3. Running:
 
-to use the program just type 'gamp'. you can pass it a single command line
-argument (the start directory) if you so desire. by default it will start
-up in the current directory.
+You can use this program by simply typing 'gamp'. There are several
+command line arguments which are documented in the COMMANDS file included
+with this archive, the gamp(1) man page, and via 'gamp -h'.
 
-	gamp
-or
-	gamp /mp3
+one additional note: the backend players have a tendency to send messages
+to stderr as 'warnings' when they play. in my experience, this is often
+unwanted and can screw up the display, so i normally run gamp (from
+bash) like this:
 
-alternately, you can set the environmental variable GAMPDIR to specify the
-directory in which gamp will start. the order of usage (if they exist) is:
-current dir, GAMPDIR, argument dir. by this i mean that if GAMPDIR is set
-and no argument is given it will start in GAMPDIR, but if a command line
-argument is given it will start there regardless of whether GAMPDIR is
-set.
+	gamp [options] [files] 2> /dev/null
 
-gamp also takes some of the command line arguments that amp used. you can
-specify buffer size (or none at all), get version number, set volume. more
-to come with this. 'gamp -h' will show you options.
+to redirect any errors to /dev/null where you dont have to see them.
 
 4. Feedback
 
-Send in your makefiles, opinions, bugreports, fixes; anything related to this
-program. You can also send me unlimited amounts of money, pepsi, whatever.
+Send in your patches, opinions, bugreports, suggestions; anything related
+to this program. You can also send me unlimited amounts of money, bawls,
+pengin reds, mountain dew, pepsi, whatever.
 
 5. Legal
 
@@ -79,49 +142,20 @@ software is not a primary selling argument for the CD.
 
 /* This license is itself copied from Tatu Ylonen's ssh package. It does 
  * not mention being copyrighted itself :)
- * --- also stolen from tom's readme for my use - russ.
+ * --- also borrowed from amp's readme for my use - russ.
  */
 
 THERE IS NO WARRANTY FOR THIS PROGRAM - whatsoever. You use it entirely at
-your risk, and neither Russ Burdick, nor Tomislav Uzelac, nor FER will be
-liable for any damages that might occur to your computer, software, etc.
-in consequence of you using this freeware program.
+your risk, and neither Russ Burdick, nor anyone else will be liable for
+any damages that might occur to your computer, software, etc. in
+consequence of you using this freeware program.
 
 Russ Burdick
 <wburdick@cs.umn.edu>
 
 6. Non-Linux OS Help
 
-here's some user feedback that i got for compilation on openbsd and
-hpux. hope it helps!
-
-From: Liam Bedford
-Subject: gamp and OpenBSD 2.7
-
-You might be interested to know that I got it to compile and work :)
-
-I had to make a few changes:
-It didn't set the CC = line correctly, so I changed it to CC = cc
-It picks it up as OS_OpenBSD, so I changed that to OS_BSD.
-It looks for <linux/soundcard.h>, where <soundcard.h> will suffice.
-Instead of linking with -lncurses -lpthread
--lcurses -lc_r -lossaudio
-seems to work. I think that was all I changed, I'll have another look...
-oh, and it needs gnu make to build.
-
-Thanks, mpg123 was causing me heartache..
-
-
-From: "Ragbirsingh, Donald"
-Subject: gamp
-
-Hey - good work
-
-I compiled gamp 0.2.2 on a HP 712/80 running HPUX 11.0 and used gcc for UX
-to compile it - however I had to do some modfications to trick "configure"
-to create the makefile, also I had to copy the audioIO_HPUX to audioIO.h, 
-
-but it does work.
-
-nice.
-
+i've tried to make this compatible with as many operating systems as
+possible, so if you need to do anything other than the simple
+'./configure; make; make install' listed above, let me know so that i can
+incorporate these changes and make it easier for everyone else.

@@ -1,12 +1,9 @@
-gamp TODO (as of 0.2.2):
+gamp TODO (as of 1.0.0):
 
-   -fix contents of FIXME
-   -documentation (in and out of source).
-   -load/save playlists (possibly via -p <filename> switch)
-   -redo structure for directory list to save memory
-   -make gamp use .gamprc directory to configure display,keys,etc
-   -use ~/.gamp for logo? maybe put it in the .gamprc instead
    -color?
-   -a man page
-   -any other cool items we can think of
-
+   -support for oog vorbis files
+   -support for streaming mp3s
+   -extended playlist functionality, including selecting multiple files,
+    cropping, multi-file add/remove/replace
+   -backgrounding/foregrounding
+   -any other interesting items i (or you) can think of
