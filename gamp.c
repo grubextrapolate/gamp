@@ -261,9 +261,6 @@ int playPlaylist() {
             volDown(&configuration);
             break;
 
-         case 'd': /* toggle visuals on/off (disabled) */
-            break;
-
          case 't': /* toggle time mode between elapsed/remaining */
             if (configuration.timeMode == ELAPSED)
                configuration.timeMode = REMAINING;
@@ -294,8 +291,6 @@ int playPlaylist() {
             break;
 
          case 'l': /* back to listwin->list */
-         case '>':
-         case '<':
             func = PLAYLIST;
             break;
 
@@ -433,14 +428,14 @@ void fillwin(WINDOW *win, ITEM *first, ITEMLIST *list, int num,
  * routine to update a window and fill it with relevant info
  */
 void updateListWin(LISTWIN *win) {
-
+   int pos = (win->win->_maxy - 2)/2;
    if ((win != NULL) && (win->win != NULL)) {
       if (func == PLAYLIST) {
          fillwin(win->win, win->first, win->list, win->win->_maxy - 2,
                  win->cur, curSong, win->active);
       } else {
-         fillwin(win->win, win->first, win->list, win->win->_maxy - 2,
-                 curSong, NULL, TRUE);
+         fillwin(win->win, seekBackItem(curSong, &pos), win->list,
+                 win->win->_maxy - 2, curSong, NULL, TRUE);
       }
       if (helpwin->active) {
          touchwin(helpwin->win);
@@ -514,8 +509,6 @@ int editPlaylist() {
             break;
 
          case 'p': /* switch to player */
-         case '>':
-         case '<':
             func = PLAYER;
             break;
 
@@ -976,7 +969,17 @@ int editPlaylist() {
             }
             break;
 
-         case 'I': /* invert selection */
+         case 'i': /* insert after current */
+            if (dirwin->active) {
+            }
+            break;
+
+         case 'I': /* insert marked after current */
+            if (dirwin->active) {
+            }
+            break;
+
+         case 'V': /* invert selection */
             if (dirwin->active) {
                markInvert(dirwin->list);
                updateListWin(dirwin);
@@ -1379,50 +1382,67 @@ void toggleHelpWin() {
  */
 void updateHelpWin() {
    char buf[MAX_STRLEN];
+   int i = 0, j = 5;
 
    wmove(helpwin->win, 0, 0);
    wclrtobot(helpwin->win);
    box(helpwin->win, 0, 0);
 
    if (func == PLAYER) {
-
-      strcpy(buf, "p: play                 s: stop");
-      mvwaddstr(helpwin->win, 2, 3, buf);
-      strcpy(buf, "f: start/end ffwd       r: start/end rew");
-      mvwaddstr(helpwin->win, 3, 3, buf);
-      strcpy(buf, "n: next                 v: prev");
-      mvwaddstr(helpwin->win, 4, 3, buf);
-      strcpy(buf, "a: pause                q: quit");
-      mvwaddstr(helpwin->win, 5, 3, buf);
-      strcpy(buf, "l: goto playlist        h: toggle help");
-      mvwaddstr(helpwin->win, 7, 3, buf);
-      strcpy(buf, "m: toggle mini-list     t: toggle time");
-      mvwaddstr(helpwin->win, 8, 3, buf);
-      strcpy(buf, "i: toggle info          R: cycle repeat mode");
-      mvwaddstr(helpwin->win, 9, 3, buf);
+      i = 6;
+      strcpy(buf, "p/space: play                   s: stop");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "f: start & end ffwd             r: start & end rew");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "n/right: next                   v/left: prev");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "a: pause                        q: quit");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "l: goto playlist                h: toggle help");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "t: toggle time mode             R: change repeat mode");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "+: increase volume              -: decrease volume");
+      mvwaddstr(helpwin->win, i++, j, buf);
 
    } else { /* PLAYLIST */
-
-      strcpy(buf, "a: add all files        A: add recursively");
-      mvwaddstr(helpwin->win, 1, 3, buf);
-      strcpy(buf, "left: remove/cd ..      right: add/chdir/play");
-      mvwaddstr(helpwin->win, 2, 3, buf);
-      strcpy(buf, "space: page down        -: page up");
-      mvwaddstr(helpwin->win, 3, 3, buf);
-      strcpy(buf, "down: move down         up: move up");
-      mvwaddstr(helpwin->win, 4, 3, buf);
-      strcpy(buf, "u: move song up         d: move song down");
-      mvwaddstr(helpwin->win, 5, 3, buf);
-      strcpy(buf, "r: randomize list       o: sort list");
-      mvwaddstr(helpwin->win, 6, 3, buf);
-      strcpy(buf, "l: load playlist        s: save playlist");
-      mvwaddstr(helpwin->win, 7, 3, buf);
-      strcpy(buf, "c: clear playlist       h: toggle this help");
-      mvwaddstr(helpwin->win, 8, 3, buf);
-      strcpy(buf, "q: quit                 p: goto player");
-      mvwaddstr(helpwin->win, 9, 3, buf);
-      strcpy(buf, "tab: switch windows");
-      mvwaddstr(helpwin->win, 10, 3, buf);
+      i = 1;
+      strcpy(buf, "a: add all files                A: add recursively");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "left: remove/cd ..              right: add/chdir/play");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "down: move down                 up: move up");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "space: page down                -: page up");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "u: move song up                 d: move song down");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "t: move to top of list          b: move to bottom of list");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "T: move marked to top           B: move marked to bottom");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "z: add marked                   Z: recursively add marked");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "D: delete marked                e: replace current item");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "i: insert after current         I: insert marked after current");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "M: mark all                     U: unmark all");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "r: randomize list               o: sort list");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "c: clear playlist               C: crop playlist to marked");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "v: reverse list                 V: invert marked");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "l: load playlist                s: save playlist");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "q: quit                         p: goto player");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "h: toggle this help             tab: switch windows");
+      mvwaddstr(helpwin->win, i++, j, buf);
+      strcpy(buf, "m: toggle mark                  P: start playing");
+      mvwaddstr(helpwin->win, i++, j, buf);
 
    }
    wnoutrefresh(helpwin->win);
@@ -1532,28 +1552,6 @@ void updateInfoWin() {
       }
       wnoutrefresh(infowin->win);
       doupdate();
-   }
-}
-
-/*
- * displays the gamp logo in the center of the window! :)
- */
-void showLogo(WINDOW *win, int height, int width) {
-   int i = 0, x_offset = 0, y_offset = 0;
-
-   if (height > 0) {
-      x_offset = (width - configuration.logoWidth) / 2;
-      y_offset = (height - configuration.logoHeight) / 2;
-
-      x_offset -= win->_begx;
-      y_offset -= win->_begy;
-
-      if (x_offset < 0) x_offset = 0;
-      if (y_offset < 0) y_offset = 0;
-
-      for (i = 0; i < configuration.logoHeight; i++) {
-         mvwaddstr(win, i+y_offset, x_offset, configuration.logo[i]);
-      }
    }
 }
 
@@ -1855,8 +1853,8 @@ void gampInit() {
 
    helpwin = (HELPWIN *)malloc(sizeof(HELPWIN));
    if (helpwin == NULL) die("gampInit: malloc error\n");
-   helpwin->height = 12;
-   helpwin->width = 50;
+   helpwin->height = 20;
+   helpwin->width = 70;
    helpwin->active = FALSE;
    helpwin->ypos = (LINES - helpwin->height) / 2;
    if (helpwin->ypos < 0) helpwin->ypos = 0;
