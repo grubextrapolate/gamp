@@ -1,6 +1,3 @@
-#include <math.h>
-#include <curses.h>
-
 void draw_func(WINDOW *win, int height, int width) {
     int i,j;
     char star[3] = "**";
@@ -52,4 +49,3 @@ void sanalyzer_render_freq(WINDOW *win, int height, int width) {
     }
     draw_func(win, height, width);
 }
-

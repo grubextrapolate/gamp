@@ -5,10 +5,13 @@
  *
  * Created by: tomislav uzelac Dec 22 1996
  */
+
+#ifdef FORMATS_H
+#define FORMATS_H
+
 extern void wav_end(struct AUDIO_HEADER *header);
 extern void wav_begin(void);
 
-#ifdef FORMATS
 void wav_end(struct AUDIO_HEADER *header);
 void wav_begin(void);
-#endif /* FORMATS */
+#endif /* FORMATS_H */

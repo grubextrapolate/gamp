@@ -1,5 +1,7 @@
-# Makefile  - amp  audio mpeg player v0.7
-# tomislav uzelac  1996,1997
+# Makefile  - gamp  audio mpeg player v0.2.0
+# russ burdick 1999,2000
+# trannie carter 1999,2000
+# based on amp, tomislav uzelac  1996,1997
 
 
 #DEBUG = -DDEBUG
@@ -21,9 +23,8 @@ LDFLAGS = @LDFLAGS@
 # you should probably leave these untouched ####################################
 #
 
-OBJ = gamp.o getbits.o getdata.o huffman.o dump.o misc2.o transform.o formats.o layer3.o util.o buffer.o audioIO.o args.o getopt.o getopt1.o
-
-LIBS = -lm -lncurses
+OBJ = getbits.o getdata.o huffman.o dump.o misc2.o transform.o formats.o layer3.o util.o buffer.o audioIO.o args.o getopt.o getopt1.o list.o gamp.o
+LIBS = -lm -lncurses -lpthread
 
 all: gamp
 

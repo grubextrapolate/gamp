@@ -7,6 +7,9 @@
  * Last modified by:
  */
 
+#ifndef AUDIO_H
+#define AUDIO_H
+
 #include <stdio.h>
 
 struct AUDIO_HEADER {
@@ -22,6 +25,7 @@ struct AUDIO_HEADER {
 	int copyright;
 	int original;
 	int emphasis;
+        int framesize;
 };
 
 struct SIDE_INFO {
@@ -61,6 +65,7 @@ extern float xr[2][32][18];
 extern int *t_l,*t_s;
 extern int nch;
 extern int t_sampling_frequency[2][3];
+extern int bs[4];
 
 extern int NUM_BANDS;
 extern int bar_heights[32];
@@ -74,8 +79,9 @@ extern int A_QUIET,A_SHOW_CNT,A_FORMAT_WAVE,A_DUMP_BINARY;
 extern int A_WRITE_TO_AUDIO,A_WRITE_TO_FILE;
 extern short pcm_sample[64];
 extern int A_AUDIO_PLAY;
-extern int A_SET_VOLUME,A_SHOW_TIME;
+extern int A_SHOW_TIME;
 extern int A_MSG_STDOUT;
+extern int currentVolume;
 
 /* ...
 */
@@ -89,6 +95,8 @@ int scalefac_s[2][2][13][3];
 
 int is[2][578];
 float xr[2][32][18];
+
+int bs[4] = {0, 384, 1152, 1152};
 
 int *t_l,*t_s;
 int nch;
@@ -148,3 +156,5 @@ int t_b8_s[2][3][13]={{ /* table B.8b ISO/IEC 11172-3 */
 int args(int argc,char **argv);
 
 #endif /* AUDIO */
+
+#endif /* AUDIO_H */

@@ -24,19 +24,10 @@ displayUsage()
 	/* in strings */
 
 	printf("\
-usage: amp [options] [ MPEG audio streams... ]\n\
-       amp -convert [ MPEG-audio stream ] [ output file ]\n\n\
+usage: gamp [options] [ start directory ]\n\
   -h, -help           display this usage information and exit\n\
   -v, -version        display the version information and exit\n\
-  -c, -convert        convert the MPEG audio stream to output file format\n\
-  -p, -play           play the specified MPEG audio streams (default action)\n\
-  -q, -quiet          supress printing of messages to STDERR\n\
   -b, -buffer <size>  set the audio buffer size to <size> k\n\
-  -d, -dump           dump binary data to STDERR\n\
-  -s, -frame          show a frame counter\n\
-  -g, -gui            output messages to stdout instead of stderr\n\
-                      (for use with xmpeg3 or similar GUIs)\n\
-  -w                  wav output\n\
       -nobuffer       do not use an audio buffer\n\
       -volume <vol>   set the volume to <vol> (0-100)\n\
       -debug <opts..> When compiled in debug <opt, opt2,...> code sections\n\
@@ -52,7 +43,7 @@ usage: amp [options] [ MPEG audio streams... ]\n\
 void
 displayVersion()
 {
-	printf("amp - %d.%d.%d\n",MAJOR,MINOR,PATCH);
+	printf("gamp - %d.%d.%d\n",MAJOR,MINOR,PATCH);
 	exit(0);
 }
 
@@ -93,7 +84,7 @@ args(int argc,char **argv)
 	A_QUIET=FALSE;
 	A_FORMAT_WAVE=FALSE;
 	A_SHOW_CNT=FALSE;
-	A_SET_VOLUME=-1;
+	currentVolume=-1;
 	A_SHOW_TIME=0;
 	A_AUDIO_PLAY=TRUE;
 	A_WRITE_TO_FILE=FALSE;
@@ -122,7 +113,7 @@ args(int argc,char **argv)
 		if (c == -1) break;
 		switch (c) {
 		case	1 : debugSetup(optarg); break;
-		case	2 : A_SET_VOLUME=argVal("Volume",optarg,0,100); break;
+		case	2 : currentVolume=argVal("Volume",optarg,0,100); break;
 		case 'q': A_QUIET=TRUE; break;
 		case 's': A_SHOW_CNT=TRUE; break;
 		case 't': A_SHOW_TIME=TRUE; break;
@@ -140,7 +131,6 @@ args(int argc,char **argv)
 	}
 	if (showversion) displayVersion();
 	if (showusage) displayUsage();
-	displayDisclaimer();
 
 	return(optind);
 }

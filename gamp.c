@@ -1,5 +1,5 @@
-/* gamp.c v0.1.10
-   by grub <grub@toast.net> and borys <borys@bill3.ncats.net>
+/* gamp.c v0.2.0
+   by grub <grub@extrapolation.net> and borys <borys@bill3.ncats.net>
    based on amp by Tomislav Uzelac <tuzelac@rasip.fer.hr>
 
    ncurses based command line interface to amp. has a directory browser
@@ -8,30 +8,14 @@
 
 */
 
-/* include amp stuff */
-#include "amp.h"
-#include <fcntl.h>
-#include <stdio.h>
-#define AUDIO
-#include "audio.h"
-#include "formats.h"
-#include "getbits.h"
-#include "huffman.h"
-#include "layer3.h"
-#include "transform.h"
+/* uncomment this to ignore id3 tags */
+/* #define IGNORE_ID3TAGS */
 
-/* include our stuff */
 #include "gamp.h"
+#include "gamp-util.h"
 #include "spectrum.h"
-#include <curses.h>
-#include <dirent.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 
-/* constants from args.c (which we dont call) */
+/* constants from args.c (which we dont call)
 int SHOW_HEADER=FALSE;
 int SHOW_HEADER_DETAIL=FALSE;
 int SHOW_SIDE_INFO=FALSE;
@@ -44,7 +28,7 @@ int SHOW_SCFSI=FALSE;
 int SHOW_BLOCK_TYPE=FALSE;
 int SHOW_TABLES=FALSE;
 int SHOW_BITRATE=FALSE;
-int AUDIO_BUFFER_SIZE = 300*1024;
+int AUDIO_BUFFER_SIZE = 100*1024;
 
 int A_DUMP_BINARY=FALSE;
 int A_QUIET=FALSE;
@@ -52,30 +36,279 @@ int A_FORMAT_WAVE=FALSE;
 int A_SHOW_CNT=FALSE;
 int A_WRITE_TO_FILE=FALSE;
 int A_MSG_STDOUT=FALSE;
-int A_SET_VOLUME = -1;
 int A_SHOW_TIME = TRUE;
 int A_AUDIO_PLAY = TRUE;
-
+*/
 /* program constants. used to indicate play status and for breaking out of
    loops and changing function from player to playlist and back. */
-int CONT=0;
-int QUIT=1;
-int GOTO_EDITOR=2;
-int GOTO_PLAYER=3;
 
-int STOP=4;
-int PAUSE=9;
-int PLAY=10;
-int START=11;
-
-int NUM_BANDS=18;
 int bar_heights[32];
+
+int display_spectrum;
 
 STRLIST dirlist  = { 0, 0, 0, 0 };
 STRLIST playlist = { 0, 0, 0, 0 };
 char cwd[256];
 char tmpstr[150];
 
+#define LOGO_X 50
+#define LOGO_Y 20
+char logo[LOGO_Y][LOGO_X];
+int logo_width;
+int logo_height;
+
+pthread_t player_thread; /* the player thread */
+pthread_mutex_t mut, readMut;
+pthread_cond_t cond;
+
+int stop;   /* stopping condition for the program */
+int play;
+int current;
+
+int time_mode;
+int length;
+
+int ch;
+int currentVolume;
+char filename[150];
+char tmpstring[150];
+char tmpname[150];
+char start_dir[150];
+
+int first_loop;
+int last_loop;
+struct AUDIO_HEADER header;
+
+int cnt, err;
+
+/* our windows */
+WINDOW *dirwin, *playwin, *helpwin, *titlewin, *mainwin;
+
+int file_status;
+ID3_tag *ptrtag;
+
+/*
+ * opens the next mp3 for playback. calls show_filename to display the
+ * name of the song in the titlewin.
+ */
+int openAndSetup() {
+
+    /* lock so we're only doing one of open/close/read at a time */
+    pthread_mutex_lock(&readMut);
+
+    if(stop == PLAYER) {
+        clear_filename(titlewin);
+        show_filename(titlewin, &playlist, current);
+        refresh();
+        wnoutrefresh(titlewin);
+        wnoutrefresh(mainwin);
+        wnoutrefresh(helpwin);
+        doupdate();
+    }
+
+    strcpy(filename, playlist.dirs[current]);
+    strcat(filename, "/");
+    strcat(filename, playlist.files[current]);
+
+    if (file_status == OPENED) {
+        fclose(in_file);
+
+        if (AUDIO_BUFFER_SIZE != 0)
+            audioBufferClose();
+        else
+            audioClose();
+
+        file_status = CLOSED;
+    }
+
+    if ((in_file=fopen(filename,"r"))==NULL) {
+        die("Could not open file: %s\n", filename);
+        return(-1);
+    }
+
+    file_status = OPENED;
+
+    /* initialize globals */
+    append=data=nch=0;
+    first_loop = FALSE;
+    cnt = 0;
+
+    pthread_mutex_unlock(&readMut);
+
+    return(0);
+}
+
+/*
+ * closes the currently playing mp3 and gets ready to move onto the next
+ * if one is available.
+ */
+int closeAndEnd() {
+
+    /* lock so we're only doing one of open/close/read at a time */
+    pthread_mutex_lock(&readMut);
+
+    if (file_status == OPENED) {
+        fclose(in_file);
+        if (AUDIO_BUFFER_SIZE != 0)
+            audioBufferClose();
+        else
+            audioClose();
+    }
+
+    file_status = CLOSED;
+
+    current++;
+
+    clear_filename(titlewin);
+
+    cnt = 0;
+    last_loop = FALSE;
+    first_loop = TRUE;
+
+    if (current == playlist.cur) {
+        current = -1;
+        wclear(mainwin);
+        box(mainwin, 0, 0);
+        refresh();
+        wnoutrefresh(titlewin);
+        wnoutrefresh(mainwin);
+        wnoutrefresh(helpwin);
+        doupdate();
+
+        return(-1);
+    }
+
+    pthread_mutex_unlock(&readMut);
+
+    return (0);
+
+}
+
+/*
+ * plays a single mp3 frame. calls processHeader, statusDisplay, and on
+ * its first run through it will get the length of the track (in seconds)
+ * via the get_time function.
+ */
+int playFrame() {
+
+    /* lock so we're only doing one of open/close/read at a time */
+    pthread_mutex_lock(&readMut);
+
+    if (processHeader(&header,cnt))
+        last_loop = TRUE;
+
+    else {
+        statusDisplay(titlewin, mainwin, LINES - 8, COLS - 2, &header, cnt);
+
+        /* setup the audio when we have the frame info */
+        if (!cnt) {
+
+            length = get_time(&header);
+
+            if (AUDIO_BUFFER_SIZE == 0)
+                audioOpen(t_sampling_frequency[header.ID][header.sampling_frequency],
+                          (header.mode!=3),currentVolume);
+            else
+                audioBufferOpen(t_sampling_frequency[header.ID][header.sampling_frequency],
+                                (header.mode!=3),currentVolume);
+        }
+
+        if (layer3_frame(&header,cnt)) {
+            warn(" error. blip.\n");
+            err=1;
+            last_loop = TRUE;
+        } else
+            cnt++;
+
+    }
+
+    pthread_mutex_unlock(&readMut);
+
+    return 0;
+
+}
+
+/*
+ * this function is run as a separate thread and it plays the songs. if
+ * the player is not set to 'play' it will wait until signaled to
+ * continue.
+ */
+void *play_song(void *arg) {
+
+    int frame_size = 0;
+
+    /* _the_ loop */
+    for(;;){
+        if (play == PLAY) {
+            if (first_loop == TRUE) {
+                openAndSetup();
+            }
+
+            playFrame();
+
+            if (last_loop == TRUE)
+                if (closeAndEnd() < 0) {
+                    pthread_mutex_lock(&mut);
+                    play = STOP;
+                    pthread_mutex_unlock(&mut);
+                }
+        } else if ((play == NEXT) || (play == PREV)) {
+
+            play = PLAY;
+            cnt = 0;
+            first_loop = TRUE;
+            last_loop = FALSE;
+
+        } else if ((play == FFWD) && (file_status == OPENED)) {
+
+    if (processHeader(&header,cnt))
+        last_loop = TRUE;
+            frame_size = bits_per_frame(&header);
+            sackbits(frame_size);
+    if (processHeader(&header,cnt))
+        last_loop = TRUE;
+            frame_size = bits_per_frame(&header);
+            sackbits(frame_size);
+    if (processHeader(&header,cnt))
+        last_loop = TRUE;
+            frame_size = bits_per_frame(&header);
+            sackbits(frame_size);
+    if (processHeader(&header,cnt))
+        last_loop = TRUE;
+            frame_size = bits_per_frame(&header);
+            sackbits(frame_size);
+    if (processHeader(&header,cnt))
+        last_loop = TRUE;
+            frame_size = bits_per_frame(&header);
+            sackbits(frame_size);
+
+            cnt += 5;
+/*            fseek(in_file, frame_size, SEEK_CUR);
+*/            play = PLAY;
+
+        } else if ((play == REW) && (file_status == OPENED)) {
+
+/*            frame_size = bits_per_frame(&header);
+            cnt -= 8;
+            fseek(in_file, -frame_size, SEEK_CUR);
+*/            play = PLAY;
+
+        } else {
+
+            pthread_mutex_lock(&mut);
+            pthread_cond_wait(&cond, &mut);
+            pthread_mutex_unlock(&mut);
+
+        }
+    }
+
+    return NULL;
+}
+
+/*
+ * reads in the mp3 header and checks it. also reads the crc bit to get it
+ * out of the way.
+ */
 int inline processHeader(struct AUDIO_HEADER *header, int cnt) {
     int g;
 
@@ -89,13 +322,13 @@ int inline processHeader(struct AUDIO_HEADER *header, int cnt) {
         if (g != GETHDR_ERR) {
             warn(" this is a file in MPEG 2.5 format, which is not defined\n");
             warn(" by ISO/MPEG. It is \"a special Fraunhofer format\".\n");
-            warn(" amp does not support this format. sorry.\n");
+            warn(" gamp does not support this format. sorry.\n");
         } else {
             /* here we should check whether it was an EOF or a sync err. later. */
             if (A_FORMAT_WAVE) wav_end(header);
 
             /* this is the message we'll print once we check for sync err.
-             * warn(" amp encountered a synchronization error\n");
+             * warn(" gamp encountered a synchronization error\n");
              * warn(" sorry.\n");
              */
         }
@@ -104,57 +337,77 @@ int inline processHeader(struct AUDIO_HEADER *header, int cnt) {
 
     /* crc is read just to get out of the way.
      */
-    if (header->protection_bit==0) getcrc();
+    if (header->protection_bit == 0) getcrc();
 
     return(0);
 }
 
+/*
+ * displays status (well, more than status). updates the elapsed/remaining
+ * time once every 10 frames if the spectrum is off. if spectrum is on it
+ * updates the spectrum and time and redisplays every other fram.
+ */
 void statusDisplay(WINDOW *twin, WINDOW *mwin, int height, int width,
                    struct AUDIO_HEADER *header, int frameNo) {
 
     int minutes,seconds;
+    if (stop == PLAYER) {
 
     if (!(frameNo%10)) {
 	seconds=frameNo*1152/t_sampling_frequency[header->ID][header->sampling_frequency];
-	minutes=seconds/60;
-	seconds=seconds % 60;
 
-	sprintf(tmpstr, " [%2d:%02d]", minutes, seconds);
-        mvwaddstr(twin, 1, 1, tmpstr);
-        wnoutrefresh(twin);
+        if (time_mode == ELAPSED) {
+            minutes = seconds / 60;
+            seconds = seconds % 60;
 
+            sprintf(tmpstr, " [%2d:%02d]", minutes, seconds);
+            mvwaddstr(twin, 1, 1, tmpstr);
+            wnoutrefresh(twin);
+        } else {
+            seconds = length - seconds;
+
+            if (seconds < 0) seconds = 0;
+
+            minutes = seconds / 60;
+            seconds = seconds % 60;
+
+            sprintf(tmpstr, " [-%d:%02d]", minutes, seconds);
+            mvwaddstr(twin, 1, 1, tmpstr);
+            wnoutrefresh(twin);
+        }
     }
 
-    sanalyzer_render_freq(mwin, height, width);
-
-    if (!(frameNo%2)) {
-        refresh();
-        wnoutrefresh(mwin);
-        doupdate();
+    if (display_spectrum == SHOW_SPECTRUM) {
+        sanalyzer_render_freq(mwin, height, width);
+        if (!(frameNo%2)) {
+            refresh();
+            wnoutrefresh(mwin);
+            doupdate();
+        }
+    } else {
+        if (!(frameNo%10)) {
+            refresh();
+            wnoutrefresh(mwin);
+            doupdate();
+        }
     }
+
     fflush(stderr);
-}
-
-int ismp3(char *name) {
-
-    int len = 0;
-    len = strlen(name);
-
-    if (len > 3) {
-        if ((strcmp(name+len-4, ".mp3") == 0) ||
-            (strcmp(name+len-4, ".Mp3") == 0) ||
-            (strcmp(name+len-4, ".mP3") == 0) ||
-            (strcmp(name+len-4, ".MP3") == 0))
-            return 1;
     }
-    return 0;
 }
 
+/*
+ * initializes the playlist to be empty with an initial size of 20 entries.
+ */
 void init_playlist(void) {
     free_list(&playlist);
     init_list(&playlist, 20);
 }
 
+/*
+ * initialize the directory list. this is called upon entering a new
+ * directory or upon entering the playlist browser.
+ */
 void init_dirlist(char *pwd) {
     DIR *dir;
     struct dirent *entry;
@@ -187,10 +440,12 @@ void init_dirlist(char *pwd) {
         if(stat(entry->d_name, &dstat) != 0) continue;
 
         if(S_ISDIR(dstat.st_mode))
-            add(&dirlist, entry->d_name, blank);
+            add(&dirlist, entry->d_name, blank, entry->d_name);
+
         else if(S_ISREG(dstat.st_mode)) {
             if (ismp3(entry->d_name))
-                add(&dirlist, blank, entry->d_name);
+                add(&dirlist, blank, entry->d_name, getName(entry->d_name));
+
         } else continue;
 
     }
@@ -198,26 +453,11 @@ void init_dirlist(char *pwd) {
     sort_list(&dirlist);
 }
 
-void strtrunc(char *str, int length) {
-/*    char format[6]; */
-    int len = strlen(str);
-    int i;
-  
-/*    sprintf(format, "%%-%ds", length);
-    sprintf(tmpstr, format, str); */
-    sprintf(tmpstr, "%-*s", length, str);
-
-    /* convert long files like:
-     * long-filename.ext -> long-fi...ext
-     * subject to the length requirements as passed
-     */
-    if(len > length) {
-        tmpstr[length] = 0;
-        for(i = 0; i < 3; i++) tmpstr[--length] = tmpstr[--len];
-        for(i = 0; i < 3; i++) tmpstr[--length] = '.';
-    }
-}
-
+/*
+ * fills a given window with contents of the list, starting with item
+ * 'first' from the list. only displays enough items to fill the window.
+ * will truncate names so that they fit across the window.
+ */
 void fillwin(WINDOW *win, STRLIST *list, int first, int width, int height) {
 
     int i;
@@ -249,16 +489,43 @@ void fillwin(WINDOW *win, STRLIST *list, int first, int width, int height) {
 
 }
 
+/*
+ * shows a filename in the given window, offset by 9 characters to allow
+ * room for the time to be displayed.
+ */
 void show_filename(WINDOW *win, STRLIST *list, int index) {
-    char dirfilecat[150];
+    char *dirfilecat;
+
+    dirfilecat = malloc(sizeof(char) * (strlen(list->names[index]) + 9));
 
     strcpy(dirfilecat, "         ");
-    strcat(dirfilecat, list->files[index]);
+    strcat(dirfilecat, list->names[index]);
     strtrunc(dirfilecat, COLS-2);
 
     mvwaddstr(win, 1, 1, tmpstr);
 }
 
+/*
+ * displays the gamp logo in the center of the window! :)
+ */
+void show_logo(WINDOW *win, int win_height, int win_width) {
+
+    int i = 0, x_offset = 0, y_offset = 0;
+
+    x_offset = (win_width - logo_width) / 2;
+    y_offset = (win_height - logo_height) / 2;
+
+    if (x_offset < 0) x_offset = 0;
+    if (y_offset < 0) y_offset = 0;
+
+    for (i = 0; i < logo_height; i++)
+        mvwaddstr(win, i+y_offset, x_offset, logo[i]);
+}
+
+/*
+ * clears the filename from the given window. this is sort of ugly, so i
+ * should probably fix it one of these days.
+ */
 void clear_filename(WINDOW *win) {
     char dirfilecat[150];
 
@@ -268,20 +535,16 @@ void clear_filename(WINDOW *win) {
     mvwaddstr(win, 1, 1, tmpstr);
 }
 
-int play_playlist(int argc, char *argv[]) {
-    WINDOW *titlewin, *helpwin, *mainwin;  /* our windows */
-    int stop = CONT;   /* stopping condition for the program */
-    int play = STOP;
-    int current = 0;
-    int ch;
-    int currentVolume = 100;
-    char filename[150] = "";
+/*
+ * initialization routine for the player. sets up the windows, displays
+ * information if the track is already playing, shows the help menu at the
+ * bottom.
+ */
+void init_player() {
 
-    int first_loop = TRUE;
-    int last_loop = FALSE;
-    struct AUDIO_HEADER header;
-
-    int cnt = 0, err = 0;
+    delwin(titlewin);
+    delwin(mainwin);
+    delwin(helpwin);
 
     /* create windows */
     titlewin = newwin(3, 0, 0, 0);
@@ -293,8 +556,18 @@ int play_playlist(int argc, char *argv[]) {
     box(mainwin, 0, 0);
     box(helpwin, 0, 0);
 
-    strcpy(filename, " Play Stop pLaylist Quit Ffwd Rew Next preV pAuse");
-    mvwaddstr(helpwin, 1, 1, filename);
+    if (play == PLAY)
+        show_filename(titlewin, &playlist, current);
+
+    if (display_spectrum == NO_SPECTRUM)
+        show_logo(mainwin, LINES - 8, COLS - 2);
+
+    strcpy(tmpstring, " Play Stop pLaylist Quit Ffwd Rew Next preV");
+    strcat(tmpstring, " pAuse Display Time");
+    mvwaddstr(helpwin, 1, 1, tmpstring);
+
+    /* move cursor to its start position */
+    move(1,1);
 
     /* refresh screen */
     refresh();
@@ -303,272 +576,166 @@ int play_playlist(int argc, char *argv[]) {
     wnoutrefresh(helpwin);
     doupdate();
 
-    /* move cursor to its start position */
-    move(1,1);
+}
 
-    while(stop == CONT) {
+/*
+ * the player function. this controls all the keyboard input while in
+ * player mode. returns info about what part of the program to go to next.
+ */
+int play_playlist(int argc, char *argv[]) {
+
+    if (play != PLAY) {
+        first_loop = TRUE;
+        last_loop = FALSE;
+
+        cnt = 0;
+        err = 0;
+    }
+
+    init_player();
+
+    while(stop == PLAYER) {
 
         ch = wgetch(titlewin);
         switch(ch) {
             case 'q': /* quit program */
-                if ((play == PLAY) || (play == PAUSE)) {
-                    fclose(in_file);
-                    audioBufferClose();
-                    wclear(mainwin);
-                    box(mainwin, 0, 0);
-                }
-
-                last_loop = FALSE;
-                first_loop = TRUE;
+                closeAndEnd();
                 stop = QUIT;
                 break;
 
             case 'p': case ' ': /* play */
-                if (current >= playlist.cur)
-                   current = 0;
-                play = PLAY;
-                nodelay(titlewin, TRUE);
-                nodelay(mainwin, TRUE);
-                nodelay(helpwin, TRUE);
+                if (playlist.cur > 0) {
+                    if ((current >= playlist.cur) || (current < 0))
+                        current = 0;
+                    pthread_mutex_lock(&mut);
+                    play = PLAY;
+                    pthread_cond_signal(&cond);
+                    pthread_mutex_unlock(&mut);
+                }
                 break;
 
             case 'f': /* ffwd */
-                if ((play == PLAY) || (play == PAUSE)) {
-                   processHeader(&header,cnt);
-                   layer3_frame(&header,cnt);
-                   processHeader(&header,cnt);
-                   layer3_frame(&header,cnt);
-                   processHeader(&header,cnt);
-                   layer3_frame(&header,cnt);
-                   processHeader(&header,cnt);
-                   layer3_frame(&header,cnt);
-                   processHeader(&header,cnt);
-                   layer3_frame(&header,cnt);
-                   cnt += 5;
+/*                if ((play == PLAY) || (play == PAUSE)) {
+                    pthread_mutex_lock(&mut);
+                    play = FFWD;
+                    pthread_cond_signal(&cond);
+                    pthread_mutex_unlock(&mut);
                 }
-                break;
+*/                break;
 
             case 'r': /* rew */
-                if ((play == PLAY) || (play == PAUSE)) {
-/*                   processHeader(&header,cnt);
-                   layer3_frame(&header,cnt);
-                   processHeader(&header,cnt);
-                   layer3_frame(&header,cnt);
-                   processHeader(&header,cnt);
-                   layer3_frame(&header,cnt);
-                   processHeader(&header,cnt);
-                   layer3_frame(&header,cnt);
-                   processHeader(&header,cnt);
-                   layer3_frame(&header,cnt); */
-                   cnt -= 5;
+/*                if ((play == PLAY) || (play == PAUSE)) {
+                    pthread_mutex_lock(&mut);
+                    play = REW;
+                    pthread_cond_signal(&cond);
+                    pthread_mutex_unlock(&mut);
                 }
-                break;
+*/                break;
 
             case 'n': /* next */
+            case KEY_RIGHT:
                 if (current < playlist.cur - 1) {
-                    if ((play == PLAY) || (play == PAUSE)) {
-                        fclose(in_file);
-                        audioBufferClose();
-
-                        wclear(mainwin);
-                        box(mainwin, 0, 0);
-
-                        last_loop = FALSE;
-                        first_loop = TRUE;
-                    }
                     current++;
+                    pthread_mutex_lock(&mut);
+                    play = NEXT;
+                    pthread_cond_signal(&cond);
+                    pthread_mutex_unlock(&mut);
                 }
                 break;
 
             case 'v': /* prev */
+            case KEY_LEFT:
                 if (current > 0) {
-                    if ((play == PLAY) || (play == PAUSE)) {
-                        fclose(in_file);
-                        audioBufferClose();
-
-                        wclear(mainwin);
-                        box(mainwin, 0, 0);
-
-                        last_loop = FALSE;
-                        first_loop = TRUE;
-                    }
                     current--;
+                    pthread_mutex_lock(&mut);
+                    play = PREV;
+                    pthread_cond_signal(&cond);
+                    pthread_mutex_unlock(&mut);
                 }
                 break;
 
             case 'a': /* pause */
-                if (play == PLAY) {
-                    play = PAUSE; /* pause if playing */
-                    nodelay(titlewin, FALSE);
-                    nodelay(mainwin, FALSE);
-                    nodelay(helpwin, FALSE);
+                if (play == PLAY) { /* pause if playing */
+                    pthread_mutex_lock(&mut);
+                    play = PAUSE;
+                    pthread_cond_signal(&cond);
+                    pthread_mutex_unlock(&mut);
                 }
                 else if (play == PAUSE) { /* unpause if already paused */
+                    pthread_mutex_lock(&mut);
                     play = PLAY;
-                    nodelay(titlewin, TRUE);
-                    nodelay(mainwin, TRUE);
-                    nodelay(helpwin, TRUE);
+                    pthread_cond_signal(&cond);
+                    pthread_mutex_unlock(&mut);
                 }
                 break;
 
             case '+': case '=': /* increase volume */
                 if (currentVolume < 100) {
-                    currentVolume += 10;
+                    currentVolume += 5;
+                    if (currentVolume > 100) currentVolume = 100;
                     audioSetVolume(currentVolume);
                 }
                 break;
 
             case '-': case '_': /* decrease volume */
                 if (currentVolume > 0) {
-                    currentVolume -= 10;
+                    currentVolume -= 5;
+                    if (currentVolume < 0) currentVolume = 0;
                     audioSetVolume(currentVolume);
                 }
                 break;
 
+            case 'd': /* toggle visuals on/off */
+                wclear(mainwin);
+                box(mainwin, 0, 0);
+                if (display_spectrum == NO_SPECTRUM)
+                    display_spectrum = SHOW_SPECTRUM;
+                else
+                    display_spectrum = NO_SPECTRUM;
+
+                init_player();
+                break;
+
+            case 't': /* toggle time mode between elapsed/remaining */
+                if (time_mode == ELAPSED)
+                    time_mode = REMAINING;
+                else
+                    time_mode = ELAPSED;
+                break;
+
             case 's': /* stop */
                 if ((play == PLAY) || (play == PAUSE)) {
-                    fclose(in_file);
-                    audioBufferClose();
-
-                    last_loop = FALSE;
-                    first_loop = TRUE;
+                    pthread_mutex_lock(&mut);
                     play = STOP;
+                    pthread_cond_signal(&cond);
+                    pthread_mutex_unlock(&mut);
 
-                    clear_filename(titlewin);
-                    wclear(mainwin);
-                    box(mainwin, 0, 0);
-                    refresh();
-                    wnoutrefresh(titlewin);
-                    wnoutrefresh(mainwin);
-                    wnoutrefresh(helpwin);
-                    doupdate();
-                    nodelay(titlewin, FALSE);
-                    nodelay(mainwin, FALSE);
-                    nodelay(helpwin, FALSE);
+                    init_player();
                 }
                 else if (play == STOP) {
                     if (playlist.cur > 0)
-                        current = 0;
+                        current = -1;
                 }
 
                 break;
 
             case 'l': /* back to playlist */
-                if ((play == PLAY) || (play == PAUSE)) {
-                    fclose(in_file);
-                    audioBufferClose();
-
-                    last_loop = FALSE;
-                    first_loop = TRUE;
-                    play = STOP;
-
-                    wclear(mainwin);
-                    box(mainwin, 0, 0);
-
-                    nodelay(titlewin, FALSE);
-                    nodelay(mainwin, FALSE);
-                    nodelay(helpwin, FALSE);
-                }
-                stop = GOTO_EDITOR;
+                stop = PLAYLIST;
                 break;
 
         }
 
-        if (play == PLAY) {
-
-            if (first_loop == TRUE) {
-                show_filename(titlewin, &playlist, current);
-                refresh();
-                wnoutrefresh(titlewin);
-                wnoutrefresh(mainwin);
-                wnoutrefresh(helpwin);
-                doupdate();
-
-                strcpy(filename, playlist.dirs[current]);
-                strcat(filename, "/");
-                strcat(filename, playlist.files[current]);
-
-                if ((in_file=fopen(filename,"r"))==NULL) {
-                    die("Could not open file: %s\n");
-                    return(1);
-                }
-
-                /* initialize globals */
-                append=data=nch=0;
-                first_loop = FALSE;
-                cnt = 0;
-
-            }
-
-            /* _the_ loop */
-            if (processHeader(&header,cnt))
-                last_loop = TRUE;
-
-            else {
-
-                statusDisplay(titlewin, mainwin, LINES - 8, COLS - 2,
-                              &header, cnt);
-
-                /* setup the audio when we have the frame info */
-                if (!cnt) {
-
-                    /* audioOpen(frequency, stereo, volume) */
-                    audioBufferOpen(t_sampling_frequency[header.ID][header.sampling_frequency],
-                                    (header.mode!=3),A_SET_VOLUME);
-                }
-
-                if (layer3_frame(&header,cnt)) {
-                    warn(" error. blip.\n");
-                    err=1;
-                    last_loop = TRUE;
-                } 
-
-            }
-
-            cnt++;
-
-            if (last_loop == TRUE) {
-
-                fclose(in_file);
-                audioBufferClose();
-
-                current++;
-
-                if (current == playlist.cur) {
-                    play = STOP;
-                    current = 0;
-                    wclear(mainwin);
-                    box(mainwin, 0, 0);
-                    refresh();
-                    wnoutrefresh(titlewin);
-                    wnoutrefresh(mainwin);
-                    wnoutrefresh(helpwin);
-                    doupdate();
-                    nodelay(titlewin, FALSE);
-                    nodelay(mainwin, FALSE);
-                    nodelay(helpwin, FALSE);
-
-                }
-
-                cnt = 0;
-                last_loop = FALSE;
-                first_loop = TRUE;
-            }
-        }
-
     }
-
-    delwin(titlewin);
-    delwin(mainwin);
-    delwin(helpwin);
 
     return stop;
 }
 
+/*
+ * the playlist editor. sets up the windows and allows you to create/alter
+ * your playlist.
+ */
 int edit_playlist(int argc, char *argv[]) {
 
-    WINDOW *dirwin, *playwin, *helpwin;  /* our two windows */
-    int stop = CONT; /* stopping condition for the program */
     int y = 1;       /* the y position (within a given window) */
     int win = 0;     /* window number. 0=dirwin, 1=playwin */
     int i = 0;       /* loop counter */
@@ -613,14 +780,14 @@ int edit_playlist(int argc, char *argv[]) {
     /* move cursor to its start position */
     move(1,1);
 
-    while(stop == CONT) {
+    while(stop == PLAYLIST) {
 
         int ch = getch();
 
         switch(ch) {
             case 'p': /* start playing! */
                 move(0, 0);
-                stop = GOTO_PLAYER;
+                stop = PLAYER;
                 break;
 
             case 'q': /* quit program */
@@ -629,6 +796,12 @@ int edit_playlist(int argc, char *argv[]) {
                 break;
 
             case 'c': /* clear the playlist */
+                if (play == PLAY) {
+                    pthread_mutex_lock(&mut);
+                    play = STOP;
+                    pthread_cond_signal(&cond);
+                    pthread_mutex_unlock(&mut);
+                }
                 init_playlist();
                 wclear(playwin);
                 box(playwin, 0, 0);
@@ -637,10 +810,39 @@ int edit_playlist(int argc, char *argv[]) {
             case 'a': /* add all in current directory */
                 for (i = 0; i < dirlist.cur; i++) {
                     if (isfile(&dirlist, i))
-                        add(&playlist, cwd, dirlist.files[i]);
+                        add(&playlist, cwd, dirlist.files[i], dirlist.names[i]);
                 }
                 fillwin(playwin,&playlist,playwin_first,
                         playwin_width, playwin_height);
+                break;
+
+            case ' ': /* scroll down by one page (if possible) */
+                if (win == 0) {
+                    if (dirwin_first+dirwin_height-2 < dirlist.cur) {
+                        dirwin_first += dirwin_height - 2;
+                        if (dirwin_first + dirwin_height - 2 > dirlist.cur)
+                            dirwin_first = dirlist.cur - dirwin_height + 2;
+                    } else {
+                        y = dirwin_height - 2;
+                        if (y > dirlist.cur) y = dirlist.cur;
+                    }
+
+                    fillwin(dirwin, &dirlist, dirwin_first,
+                            dirwin_width, dirwin_height);
+                }
+                else if (win == 1) {
+                    if (playwin_first+playwin_height-2 < playlist.cur) {
+                        playwin_first += playwin_height - 2;
+                        if (playwin_first + playwin_height - 2 > playlist.cur)
+                            playwin_first = playlist.cur - playwin_height + 2;
+                    } else {
+                        y = playwin_height -2;
+                        if (y > playlist.cur) y = playlist.cur;
+                    }
+
+                    fillwin(playwin, &playlist, playwin_first,
+                            playwin_width, playwin_height);
+                }
                 break;
 
             case KEY_UP: /* move up in window, scroll if needed */
@@ -686,16 +888,31 @@ int edit_playlist(int argc, char *argv[]) {
                     box(playwin, 0, 0);
                     fillwin(playwin,&playlist,playwin_first,
                             playwin_width, playwin_height);
+
                     if (y+playwin_first > playlist.cur)
                         if (y > 1) y--;
 
+                    /* if we are currently playing then we need to adjust
+                       the pointer to the current playing song */
+                    if (play == PLAY) {
+                        if (y+playwin_first-1 < current)
+                            current--;
+                        else if (y+playwin_first-1 == current) {
+                            pthread_mutex_lock(&mut);
+                            play = NEXT;
+                            pthread_cond_signal(&cond);
+                            pthread_mutex_unlock(&mut);
+                        }
+                    }
                 }
                 break;
 
             case KEY_RIGHT: /* browse to new dir or add to playlist*/
                 if (win == 0) {
                     if (isfile(&dirlist, y+dirwin_first-1)) {
-                        add(&playlist, cwd, dirlist.files[y+dirwin_first-1]);
+                        add(&playlist, cwd,
+                            dirlist.files[y+dirwin_first-1],
+                            dirlist.names[y+dirwin_first-1]);
                         fillwin(playwin,&playlist,playwin_first,
                                 playwin_width, playwin_height);
                     }
@@ -742,26 +959,44 @@ int edit_playlist(int argc, char *argv[]) {
 
 }
 
-int main(int argc, char *argv[]) {
+/*
+ * this is the  main function. it does some initial setup and then passes
+ * things over to the playlist editor. also responsible for switching
+ * between modes within the program.
+ */
+int main(int argc, char **argv) {
 
-    int stop = GOTO_EDITOR;   /* stopping condition for the program */
+    int argPos;
     int i;
+    char *env_ptr;
 
-    char start_dir[150] = "";
+    pthread_mutex_init(&mut, NULL);
+    pthread_mutex_init(&readMut, NULL);
+    pthread_cond_init(&cond, NULL);
+
+    stop = PLAYLIST;   /* stopping condition for the program */
+    play = STOP;
+    current = -1;
+    filename[0] = '\0';
+    display_spectrum = NO_SPECTRUM;
+
+    time_mode = REMAINING;
+
+    first_loop = TRUE;
+    last_loop = FALSE;
+
+    file_status = CLOSED;
+
+    length = 0;
+    cnt = 0;
+    err = 0;
+
+    start_dir[0] = '\0';
  
     for (i = 0; i <= NUM_BANDS; i++)
         bar_heights[i] = 0;
 
-    if (argc == 2)
-        strcat(start_dir, argv[1]);
-
-    init_dirlist(start_dir); /* initialize our two lists */
-    init_playlist();
-
-    initscr(); /* ncurses init stuff */
-    keypad(stdscr, TRUE);
-    cbreak();
-    noecho();
+    argPos = args(argc,argv); /* process command line arguments */
 
     /* premultiply dewindowing tables.  Should go away */
     premultiply();
@@ -769,19 +1004,47 @@ int main(int argc, char *argv[]) {
     /* init imdct tables */
     imdct_init();
 
-    while(stop != QUIT) {
+    if (argPos <= argc) {
 
-        if (stop == GOTO_PLAYER)
-            stop = play_playlist(argc, argv);
+        env_ptr = getenv("GAMPDIR");
 
-        else if (stop == GOTO_EDITOR)
-            stop = edit_playlist(argc, argv);
+        if (env_ptr != NULL)
+            strcpy(start_dir, env_ptr);
 
+        if (argPos == argc - 1)
+            strcpy(start_dir, argv[argPos]);
 
-    }
+        init_dirlist(start_dir); /* initialize our two lists */
+        init_playlist();
 
-    endwin();
-    return 1;
+        logo_width = 0;
+        logo_height = 0;
+        read_logo();
+
+        initscr(); /* ncurses init stuff */
+        keypad(stdscr, TRUE);
+        cbreak();
+        noecho();
+
+        pthread_create(&player_thread, NULL, play_song, NULL);
+        pthread_detach(player_thread);
+
+        while(stop != QUIT) {
+
+            if (stop == PLAYER)
+                stop = play_playlist(argc, argv);
+
+            else if (stop == PLAYLIST)
+                stop = edit_playlist(argc, argv);
+
+        }
+
+        endwin();
+
+    } else
+        displayUsage();
+
+    return 0;
 
 }
 

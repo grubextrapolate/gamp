@@ -5,6 +5,9 @@
  *
  * tomislav uzelac  Apr 1996
  */
+
+#ifndef GETDATA_H
+#define GETDATA_H
  
 extern int decode_scalefactors(struct SIDE_INFO *info,struct AUDIO_HEADER *header,int gr,int ch); 
 extern int decode_huffman_data(struct SIDE_INFO *info,int gr,int ch,int ssize); 
@@ -46,3 +49,5 @@ static const char spooky_table[2][3][3][4]={
 }};
 
 #endif /* GETDATA */
+
+#endif /* GETDATA_H */

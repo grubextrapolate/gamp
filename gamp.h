@@ -1,137 +1,135 @@
+#ifndef GAMP_H
+#define GAMP_H
+
+#include <curses.h>
+#include "list.h"
+
+/* include amp stuff */
+#include "amp.h"
+#include <fcntl.h>
+#include <stdio.h>
+#define AUDIO
+#include "audio.h"
+#include "formats.h"
+#include "getbits.h"
+#include "huffman.h"
+#include "layer3.h"
+#include "transform.h"
+
+/* include our stuff */
+#include "list.h"
+#include <math.h>
+#include <curses.h>
+#include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <pthread.h>
 
-typedef struct {
-    char **files;
-    char **dirs;
-    int cur;  /* how many strings are in use */
-    int max;  /* how many strings we've allocated space for */
-} STRLIST;
+/* include id3 stuff (from id3ren) */
+#include "genre.h" 
 
-void grow_list(STRLIST *list) {
-    char **tmpfiles = (char **)malloc(sizeof(char *) * list->max * 2);
-    char **tmpdirs = (char **)malloc(sizeof(char *) * list->max * 2);
-    memcpy(tmpfiles, list->files, list->cur*sizeof(char *));
-    memcpy(tmpdirs, list->dirs, list->cur*sizeof(char *));
-    free(list->files);
-    free(list->dirs);
-    list->files = tmpfiles;
-    list->dirs = tmpdirs;
-    list->max = list->max * 2;
-}
+#define TAGLEN_TAG 3
+#define TAGLEN_SONG 30
+#define TAGLEN_ARTIST 30
+#define TAGLEN_ALBUM 30
+#define TAGLEN_YEAR 4
+#define TAGLEN_COMMENT 30
+#define TAGLEN_GENRE 1
+  
+typedef struct ID3_struct
+{
+  char tag[TAGLEN_TAG+1];
+  char songname[TAGLEN_SONG+1];
+  char artist[TAGLEN_ARTIST+1];
+  char album[TAGLEN_ALBUM+1];
+  char year[TAGLEN_YEAR+1];
+  char comment[TAGLEN_COMMENT+1];
+  int genre;
+} ID3_tag;
 
-void add(STRLIST *list, char* dir, char *file) {
-    list->files[list->cur] = strdup(file);
-    list->dirs[list->cur++] = strdup(dir);
-    if(list->cur == list->max) grow_list(list);
-}
+#define CONT 0
+#define QUIT 1
+#define PLAYLIST 2
+#define PLAYER 3
 
-void delete(STRLIST *list, int index) {
-    int i;
-    free(list->files[index]);
-    free(list->dirs[index]);
-    for (i = index; i < list->cur - 1; i++) {
-        list->files[i] = list->files[i+1];
-        list->dirs[i] = list->dirs[i+1];
-    }
-    list->cur--;
-}
+#define STOP 4
+#define NEXT 5
+#define PREV 6
+#define FFWD 7
+#define REW 8
+#define PAUSE 9
+#define PLAY 10
+#define START 11
 
-void swap(STRLIST *list, int first, int second) {
-    char *tmpPtr;
-    tmpPtr = list->dirs[first];
-    list->dirs[first] = list->dirs[second];
-    list->dirs[second] = tmpPtr;
-    tmpPtr = list->files[first];
-    list->files[first] = list->files[second];
-    list->files[second] = tmpPtr;
-}
+#define OPENED 20
+#define CLOSED 21
 
-int isdir(STRLIST *list, int entry) {
-    if (strcmp(list->files[entry], "") == 0) return 1;
-    else return 0;
-}
+#define ELAPSED 30
+#define REMAINING 31
 
-int isfile(STRLIST *list, int entry) {
-    if (strcmp(list->dirs[entry], "") == 0) return 1;
-    else return 0;
-}
+#define NO_SPECTRUM 40
+#define SHOW_SPECTRUM 41
 
-void sort_list(STRLIST *list) {
+#define NUM_BANDS 18
+extern int bar_heights[32];
 
-    int i, j;
-    /* do a bubble sort by both type (dir < file) and by alphabet. */
+extern char cwd[256];
+extern char tmpstr[150];
 
-    for (j = 1; j <= list->cur - 1; j++) {
-        for (i = 0; i <= list->cur - 2; i++) {
+#define LOGO_X 50
+#define LOGO_Y 20
+extern char logo[LOGO_Y][LOGO_X];
+extern int logo_width;
+extern int logo_height;
 
-            /* dir and dir */
-            if (isdir(list,i) && isdir(list,i+1)) {
-                if (strcmp(list->dirs[i], list->dirs[i+1]) > 0)
-                    swap(list, i, i+1);
+extern pthread_t player_thread; /* the player thread */
+extern pthread_mutex_t mut;
+extern pthread_cond_t cond;
 
-            /* file and file */
-            } else if (isfile(list, i) && isfile(list,i+1)) {
-                if (strcmp(list->files[i], list->files[i+1]) > 0)
-                    swap(list, i, i+1);
+extern int stop;   /* stopping condition for the program */
+extern int play;
+extern int current;
 
-            /* file and dir so swap regardless*/
-            } else if (isfile(list, i) && isdir(list, i+1))
-                    swap(list, i, i+1);
-        }
-    }
-}
+extern int time_mode;
+extern int length;
 
-void randomize_list(STRLIST *list) {
+extern int ch;
+extern int currentVolume;
+extern char filename[150];
+extern char tmpstring[150];
+extern char tmpname[150];
+extern char start_dir[150];
 
-    int i, num_items, j;
+extern int first_loop;
+extern int last_loop;
+extern struct AUDIO_HEADER header;
+extern int cnt, err;
 
-    char **tmpfiles = (char **)malloc(sizeof(char *) * list->max);
-    char **tmpdirs = (char **)malloc(sizeof(char *) * list->max);
+/* our windows */
+extern WINDOW *dirwin, *playwin, *helpwin, *titlewin, *mainwin;
 
-    num_items = list->cur;
-    i = 0;
+extern int file_status;
+extern ID3_tag *ptrtag;
 
-    for (i = 0; list->cur > 0; i++) {
+extern void show_filename(WINDOW *, STRLIST *, int);
+extern void clear_filename(WINDOW *);
+extern void statusDisplay(WINDOW *, WINDOW *, int, int, struct AUDIO_HEADER *, int);
+extern int inline processHeader(struct AUDIO_HEADER *, int);
 
-        /* number from 0 to num_items-1 */
-/*        j = (int) (num_items*rand()); */
-        j = (list->cur - 1);
+extern int id3_seek_header (FILE *fp, char *fn);
+extern int id3_read_file (char *dest, unsigned long size, FILE *fp, char *fn);
+extern int read_tag (FILE *fp, char *fn);
+extern char *getName(char *filename);
+extern int get_time(struct AUDIO_HEADER *header);
+extern int get_frame_size(struct AUDIO_HEADER *header);
+extern double time_per_frame(struct AUDIO_HEADER *header);
+extern double bits_per_frame(struct AUDIO_HEADER *header);
+extern int ismp3(char *name);
+extern void strtrunc(char *str, int length);
+extern void strtrim(char *string);
+extern void read_logo();
 
-        tmpfiles[i] = strdup(list->files[j]);  /* move random item to */
-        tmpdirs[i] = strdup(list->dirs[j]);    /* temp list.          */
-        delete(list, j);
-
-    }
-
-    free(list->files);
-    free(list->dirs);
-    list->files = tmpfiles;
-    list->dirs = tmpdirs;
-    list->cur = num_items;
-}
-
-void free_list(STRLIST *list) {
-    if ((list && list->files) || (list && list->dirs)) {
-        while (list->cur--) {
-           free(list->files[list->cur]);
-           free(list->dirs[list->cur]);
-        }
-        free(list->files);
-        free(list->dirs);
-        list->max = 0;
-    }
-}
-
-void init_list(STRLIST *list, int num) {
-    if(list) {
-        list->files = (char **)malloc(sizeof(char *) * num);
-        list->dirs = (char **)malloc(sizeof(char *) * num);
-        list->cur = 0;
-        list->max = num;
-    }
-}
-
+#endif /* GAMP_H */

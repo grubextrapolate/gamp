@@ -7,6 +7,9 @@
  * Last modified by:
  */
 
+#ifndef LAYER3_H
+#define LAYER3_H
+
 extern int layer3_frame(struct AUDIO_HEADER *header,int cnt);
 
 #ifdef LAYER3
@@ -14,3 +17,5 @@ extern int layer3_frame(struct AUDIO_HEADER *header,int cnt);
 int layer3_frame(struct AUDIO_HEADER *header,int cnt);
 
 #endif /* LAYER3 */
+
+#endif /* LAYER3_H */

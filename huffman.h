@@ -1,5 +1,8 @@
 /* this file is a part of amp software, (C) tomislav uzelac 1996,1997
 */
+
+#ifndef HUFFMAN_H
+#define HUFFMAN_H
  
 /* huffman.h  
  * 	      
@@ -245,3 +248,5 @@ unsigned char h_cue[34][N_CUE]={
 unsigned int *tables[34]={h0,h1,h2,h3,0,h5,h6,h7,h8,h9,h10,h11,h12,h13,0,h15,
 	h16,h16,h16,h16,h16,h16,h16,h16,h24,h24,h24,h24,h24,h24,h24,h24,hA,hB};
 #endif /* HUFFMAN */
+
+#endif /* HUFFMAN_H */

@@ -1,3 +1,6 @@
+#ifndef PROTO_H
+#define PROTO_H
+
 /* From: util.c */
 void die(char *, ...);
 void warn(char *, ...);
@@ -23,3 +26,4 @@ void audioBufferWrite(char *, int);
 /* From: audio.c */
 void displayUsage();
 
+#endif /* PROTO_H */

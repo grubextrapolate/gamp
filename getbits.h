@@ -6,6 +6,9 @@
  * Created by: tomislav uzelac  Apr 1996
  */
 
+#ifndef GETBITS_H
+#define GETBITS_H
+
 /* gethdr() error codes: NS == not supported
 */
 #define GETHDR_ERR 1
@@ -59,3 +62,4 @@ unsigned int getbits(int n);
   
 #endif /* GETBITS */
 
+#endif /* GETBITS_H */

@@ -1,7 +1,7 @@
-gamp ncurses MPEG audio decoder, version 0.1.9
+gamp ncurses MPEG audio decoder, version 0.2.0
 
-grub <wburdick@cs.umn.edu> 1999
-borys <borys@bill3.ncats.net> 1999
+grub <wburdick@cs.umn.edu> 1999,2000
+borys <borys@bill3.ncats.net> 1999,2000
 based on amp by Tomislav Uzelac  1996,1997
 
 1. Introduction
@@ -12,11 +12,22 @@ mp3 players. as such it incorperates a playlist browser, play, pause,
 stop, prev, next options. work is in progress on a text-based frequency
 analyzer, fast forward, and rewind functions. more ideas as they come. at
 present this program has been tested only under linux on both the redhat
-(5.2) and debian distributions. please feel free to drop us a line with
+and debian distributions. please feel free to drop us a line with
 any suggestions, comments, or bug reports.
 
-at present there isnt really a webpage for gamp but the current version
-can be found at http://www.cs.umn.edu/~wburdick/gamp/
+the frequency analyzer and time remaining functions were based on elements
+of xmms by Peter Alm, Thomas Nilsson, Olle Hallnas. xmms is available at
+http://www.xmms.org/.
+
+begining with version 0.2.0 gamp now includes elements of id3ren by Robert
+Alto <badcrc@tscnet.com>. i borrowed some of the functions from his id3
+renamer which are used in reading id3 tags from mp3s. further information
+on this program can be found at http://tscnet.com/pages/badcrc/apps/id3ren/
+
+the present webpage for gamp can be found at
+http://www.cs.umn.edu/~wburdick/gamp/. i may put up a domain for it in the
+future, but right now my cs account is adequate and i dont have to worry
+much about bandwidth.
 
 2. Installation
 
@@ -41,6 +52,17 @@ up in the current directory.
 or
 	gamp /mp3
 
+alternately, you can set the environmental variable GAMPDIR to specify the
+directory in which gamp will start. the order of usage (if they exist) is:
+current dir, GAMPDIR, argument dir. by this i mean that if GAMPDIR is set
+and no argument is given it will start in GAMPDIR, but if a command line
+argument is given it will start there regardless of whether GAMPDIR is
+set.
+
+gamp also takes some of the command line arguments that amp used. you can
+specify buffer size (or none at all), get version number, set volume. more
+to come with this. 'gamp -h' will show you options.
+
 4. Feedback
 
 Send in your makefiles, opinions, bugreports, fixes; anything related to this
@@ -57,7 +79,7 @@ software is not a primary selling argument for the CD.
 
 /* This license is itself copied from Tatu Ylonen's ssh package. It does 
  * not mention being copyrighted itself :)
- * --- also stolen from tom's readme for my use - grub.
+ * --- also stolen from tom's readme for my use - russ.
  */
 
 THERE IS NO WARRANTY FOR THIS PROGRAM - whatsoever. You use it entirely at

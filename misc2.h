@@ -7,6 +7,9 @@
  * Last modified by: tomislav uzelac Jan  8 1996
  */
 
+#ifndef MISC2_H
+#define MISC2_H
+
 extern void requantize_mono(int gr,int ch,struct SIDE_INFO *info,struct AUDIO_HEADER *header);
 extern void requantize_ms(int gr,struct SIDE_INFO *info,struct AUDIO_HEADER *header);
 extern void alias_reduction(int ch);
@@ -1264,3 +1267,5 @@ static const float t_43[8192]={
 164925.380331,164952.250441,164979.121646,165005.993946,165032.867339,165059.741826,165086.617407,165113.494082
 };	
 #endif
+
+#endif /* MISC2_H */

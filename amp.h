@@ -1,13 +1,23 @@
+#ifndef AMP_H
+#define AMP_H
+
 /* these should not be touched
 */
 #define		SYNCWORD	0xfff
+
+#ifndef TRUE
 #define		TRUE		1
+#endif
+
+#ifndef FALSE
 #define		FALSE		0
+#endif
+
 /* version 
 */
 #define		MAJOR		0
-#define		MINOR		7
-#define		PATCH		3
+#define		MINOR		2
+#define		PATCH		0
 
 #define MAX(a,b)  ((a) > (b) ? (a) : (b))
 #define MIN(a,b)  ((a) < (b) ? (a) : (b))
@@ -52,3 +62,5 @@ extern struct debugLookup_t debugLookup[];
 
 
 extern int AUDIO_BUFFER_SIZE;
+
+#endif /* AMP_H */

@@ -1,5 +1,19 @@
 CHANGES:
 
+   v0.2.0:
+   -multithreaded playback
+   -can edit playlist while playing
+   -toggle display on/off
+   -toggle between remaining/elapsed time
+   -displays id3 tag data if available
+   -many small bug fixes
+   -reincorperating some elements of amp that were hacked out, including
+    its command line argument handling and non-buffered playback.
+   -fixed playlist randomizer
+
+   v0.1.11:
+   -began as some minor fixes and turned into major fixes (ie-0.2.0)
+
    v0.1.10:
    -minor bugfixes in player.
 

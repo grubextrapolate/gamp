@@ -2,9 +2,11 @@ FEATURES:
 
    -it plays!
    -prev/next/stop/pause work.
-   -playlist seems to work ok for adding and removing.
-   -directory browsing works.
-   -directory list is sorted.
+   -playlist editor with add/remove/clear/all/randomize.
+   -shows id3 tags (if present)
    -file filtering for *.mp3 (case insensitive).
    -passing start directory on command line seems to be working.
-
+   -GAMPDIR environmental vairiable can be used to specify start directory.
+   -can edit playlist while playing
+   -toggle spectrum display on/off
+   -toggle between time elapsed/remaining

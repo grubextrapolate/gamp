@@ -3,6 +3,9 @@
  * will accept it without blocking. It must also be a multiple of 128
  */
 
+#ifndef AUDIO_IO_H
+#define AUDIO_IO_H
+
 #ifdef OS_AIX
   #define AUSIZ 32768
 #endif
@@ -26,3 +29,5 @@
 #ifdef OS_SunOS
   #define AUSIZ 4096
 #endif
+
+#endif /* AUDIO_IO_H */

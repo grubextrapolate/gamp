@@ -1,6 +1,9 @@
 /* this file is a part of amp software, (C) tomislav uzelac 1996,1997
 */
  
+#ifndef TRANSFORM_H
+#define TRANSFORM_H
+
 /* transform.h  tables galore
  *
  * Created by: tomislav uzelac  May 1996
@@ -179,3 +182,5 @@ static float t_dewindow[16][32] =	{
  0.600219727 ,-0.090927124 , 0.084182739 ,-0.030517578 , 0.007919312 ,-0.003326416 , 0.000473022 , 0.000015259
 			};
 #endif /* TRANSFORM */
+
+#endif /* TRANSFORM_H */
