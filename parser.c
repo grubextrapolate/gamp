@@ -139,12 +139,6 @@ int readPrefs(char *filename, CONFIGURATION *config) {
                else if (strcmp(ptr + 11, "FALSE") == 0)
                   config->expert = FALSE;
 
-            } else if (strncmp(ptr, "useColor=", 9) == 0) {
-               if (strcmp(ptr + 11, "TRUE") == 0)
-                  config->color = TRUE;
-               else if (strcmp(ptr + 11, "FALSE") == 0)
-                  config->color = FALSE;
-
             } else if (strncmp(ptr, "ignoreCase=", 11) == 0) {
                if (strcmp(ptr + 11, "TRUE") == 0)
                   config->ignoreCase = TRUE;
@@ -297,13 +291,6 @@ int writePrefs(char *filename, CONFIGURATION *config) {
          else
             fprintf(outfile, "FALSE\n");
 
-         fprintf(outfile, "# use color? TRUE or FALSE. ignored if term does not support color\n");
-         fprintf(outfile, "useColor=");
-         if (config->color == TRUE)
-            fprintf(outfile, "TRUE\n");
-         else
-            fprintf(outfile, "FALSE\n");
-
          fprintf(outfile, "# ignore case when sorting? TRUE or FALSE\n");
          fprintf(outfile, "ignoreCase=");
          if (config->ignoreCase == TRUE)
@@ -366,7 +353,6 @@ int dumpPrefs(CONFIGURATION *config) {
    debug("dumpPrefs: startWith=\"%d\"\n", config->startWith);
    debug("dumpPrefs: ignoreID3=\"%d\"\n", config->ignoreID3);
    debug("dumpPrefs: expert=\"%d\"\n", config->expert);
-   debug("dumpPrefs: color=\"%d\"\n", config->color);
    debug("dumpPrefs: ignoreCase=\"%d\"\n", config->ignoreCase);
    debug("dumpPrefs: repeatMode=\"%d\"\n", config->repeatMode);
    debug("dumpPrefs: volup=\"%s\"\n", config->volup);
@@ -405,7 +391,6 @@ void initPrefs(CONFIGURATION *config) {
    config->startWith = PLAYER;
    config->ignoreID3 = FALSE;
    config->expert = FALSE;
-   config->color = TRUE;
    config->ignoreCase = TRUE;
    config->repeatMode = repeatNone;
 

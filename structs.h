@@ -111,7 +111,6 @@ typedef struct CONFIGURATION {
    int startWith; /* PLAYER or PLAYLIST */
    int ignoreID3; /* TRUE or FALSE */
    int expert; /* TRUE or FALSE */
-   int color; /* TRUE or FALSE. ignored if term doesnt support color */
    char *configFile; /* full path to config file */
    int ignoreCase; /* ignore filename case when sorting */
    int repeatMode; /* repeat none, one, all */

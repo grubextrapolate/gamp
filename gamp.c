@@ -163,6 +163,10 @@ void updateProgWin() {
       }
 
       wnoutrefresh(progwin->win);
+      if (helpwin->active) {
+         touchwin(helpwin->win);
+         wnoutrefresh(helpwin->win);
+      }
       doupdate();
    }
 }
@@ -405,8 +409,8 @@ void fillwin(LISTWIN *lw, ITEM *first, int num,
    int i = 0;
    char *tmpstr = NULL;
    int h = 0;
+   double hd = 0;
    double frac = 0;
-   double fraca = 0;
    int n = 0;
    int off = 0;
 
@@ -418,7 +422,7 @@ void fillwin(LISTWIN *lw, ITEM *first, int num,
    }
    cur = first;
    if ((lw->list != NULL) && (lw->list->num != 0)) {
-      while ((i <= num) && (cur != NULL)) {
+      while ((i < num) && (cur != NULL)) {
 
          if (cur == sel) {
             mvwaddstr(lw->win, i+1, 1, "-");
@@ -437,30 +441,25 @@ void fillwin(LISTWIN *lw, ITEM *first, int num,
          i++;
       }
 
-
-      frac = (double)num/lw->list->num;
+      frac = ((double)num)/lw->list->num;
       if (frac > 1) frac = 1;
-      h = (int)(frac * (double)num + 0.5);
-      if (h < 1) h = 1;
-      if (h >= num) h = num;
+      hd = frac * num;
+      h = (int) hd;
+      if (hd < 1) h = 1;
+
       n = 0;
-      cur = sel;
+      cur = first;
       while (cur != NULL) {
          n = n + 1;
          cur = cur->prev;
       }
-      fraca = (double)n/lw->list->num;
-      if (fraca > 1) fraca = 1;
-//      off = (int) (((double)n / (lw->list->num - num)) * num);
-      off = (int)(fraca * (double)num + 0.5);
-      if (lw->list->num <= num) off = 0;
-      if (off >= num) off = num;
-//((double)n / (lw->list->num - num)) * num);
 
-      debug("num=%d, lw->list->num=%d, frac=%f, h=%d, n=%d, off=%d\n",
-num, lw->list->num, frac, h, n, off);
+      hd = frac * (n);
+      off = (int) (hd+0.5);
+      if (n <= 1) off = 0;
+      if (n + num > lw->list->num) off = num - h;
 
-      for (i = 0; i <= num; i++) {
+      for (i = 0; i < num; i++) {
          wattrset(lw->win, A_REVERSE);
          if (i < off)
             mvwaddstr(lw->win, i+1, lw->win->_maxx - 1, " ");
@@ -483,10 +482,10 @@ void updateListWin(LISTWIN *win) {
    int pos = (win->win->_maxy - 2)/2;
    if ((win != NULL) && (win->win != NULL)) {
       if (func == PLAYLIST) {
-         fillwin(win, win->first, win->win->_maxy - 2, win->cur,
+         fillwin(win, win->first, win->win->_maxy - 1, win->cur,
                  curSong, win->active);
       } else {
-         fillwin(win, seekBackItem(curSong, &pos), win->win->_maxy - 2,
+         fillwin(win, seekBackItem(curSong, &pos), win->win->_maxy - 1,
                  curSong, NULL, TRUE);
       }
       if (helpwin->active) {
@@ -1192,26 +1191,39 @@ int readM3u(char *filename) {
             tmp = index(ptr, '\n');
             if (tmp != NULL) *tmp = '\0';
 
-            item = (ITEM *)malloc(sizeof(ITEM));
-            if (item == NULL) die("readM3u: malloc failure\n");
+            if (*ptr != '#') {
+               debug("readM3u: reading line \"%s\"\n", ptr);
 
-            item->path = ptr;
-            item->name = rindex(ptr, '/');
-            item->info = NULL;
-            item->next = NULL;
-            item->prev = NULL;
-            item->isfile = TRUE;
+               item = (ITEM *)malloc(sizeof(ITEM));
+               if (item == NULL) die("readM3u: malloc failure\n");
 
-            if (item->name != NULL) item->name++;
-            else die("readM3u: invalid filename \"%s\"\n", ptr);
+               item->path = ptr;
+               item->name = rindex(ptr, '/');
+               item->info = NULL;
+               item->next = NULL;
+               item->prev = NULL;
+               item->isfile = TRUE;
 
-            if(stat(item->path, &dstat) == 0) {
-               getID3(item);
-               addItem(item, &listwin->list);
-               debug("readM3u: added %s\n", item->name);
+               if (item->name != NULL) item->name++;
+               else item->name = item->path;
+
+               if (strncmp(item->path, "http://", 7) == 0) {
+                  debug("readM3u: looks like url, not stating \"%s\"\n", item->path);
+                  item->id3 = NULL;
+                  addItem(item, &listwin->list);
+                  debug("readM3u: added %s\n", item->path);
+               } else if (stat(item->path, &dstat) == 0) {
+                  getID3(item);
+                  addItem(item, &listwin->list);
+                  debug("readM3u: added %s\n", item->name);
+               } else {
+                  debug("readM3u: cant stat \"%s\"\n", item->path);
+
+                  free(ptr);
+                  free(item);
+               }
             } else {
-               free(ptr);
-               free(item);
+               debug("readM3u: skipping \"%s\"\n", ptr);
             }
          }
       }
@@ -1393,7 +1405,7 @@ void updatePlaying(ITEM *sng) {
                                (strcmp(term_type, "eterm") == 0)))
       fprintf(stderr, "\033]0;%s\007", curSong->name);
 
-   debug("updatePlaying:sng->name=%s\n", sng->name);
+   debug("updatePlaying: sng->name=%s\n", sng->name);
    if (progwin != NULL) {
       if (progwin->name != NULL) free(progwin->name);
       progwin->name = strpad(sng, progwin->win->_maxx - 11);
@@ -1459,102 +1471,83 @@ void updateHelpWin() {
       j = 5;
       strcpy(buf, "p/space: play                   s: stop");
       mvwaddstr(helpwin->win, i, j, buf);
-/* XXXXXXXXXXXXXXXX */
-mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
-mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
-mvwchgat(helpwin->win, i, j+2, 5, A_BOLD, COLOR_CYAN, NULL);
-i++;
-      strcpy(buf, "f: start & end ffwd             r: start & end rew");
+      i++;
+      strcpy(buf, "f: start/end ffwd               r: start/end rew");
       mvwaddstr(helpwin->win, i, j, buf);
-mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
-mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
-i++;
+      i++;
       strcpy(buf, "n/right: next                   v/left: prev");
       mvwaddstr(helpwin->win, i, j, buf);
-mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
-mvwchgat(helpwin->win, i, j+2, 5, A_BOLD, COLOR_CYAN, NULL);
-mvwchgat(helpwin->win, i, j+34, 4, A_BOLD, COLOR_CYAN, NULL);
-mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
-i++;
+      i++;
       strcpy(buf, "a: pause                        q: quit");
       mvwaddstr(helpwin->win, i, j, buf);
-mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
-mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
-i++;
+      i++;
       strcpy(buf, "l: goto playlist                h: toggle help");
       mvwaddstr(helpwin->win, i, j, buf);
-mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
-mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
-i++;
+      i++;
       strcpy(buf, "t: toggle time mode             R: change repeat mode");
       mvwaddstr(helpwin->win, i, j, buf);
-mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
-mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
-i++;
+      i++;
       strcpy(buf, "+: increase volume              -: decrease volume");
       mvwaddstr(helpwin->win, i, j, buf);
-mvwchgat(helpwin->win, i, j, 1, A_BOLD, COLOR_CYAN, NULL);
-mvwchgat(helpwin->win, i, j+32, 1, A_BOLD, COLOR_CYAN, NULL);
-i++;
+      i++;
 
    } else { /* PLAYLIST */
       i = 1;
       j = 5;
       strcpy(buf, "a: add all files                A: add recursively");
       mvwaddstr(helpwin->win, i, j, buf);
-mvwchgat(helpwin->win, i, j, 5, A_BOLD, COLOR_CYAN, NULL);
-i++;
+      i++;
       strcpy(buf, "left: remove/cd ..              right: add/chdir/play");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "down: move down                 up: move up");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "space: page down                -: page up");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "u: move song up                 d: move song down");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "t: move to top of list          b: move to bottom of list");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "T: move marked to top           B: move marked to bottom");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "z: add marked                   Z: recursively add marked");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "D: delete marked                e: replace current item");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "i: insert after current         I: insert marked after current");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "M: mark all                     U: unmark all");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "r: randomize list               o: sort list");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "c: clear playlist               C: crop playlist to marked");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "v: reverse list                 V: invert marked");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "l: load playlist                s: save playlist");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "q: quit                         p: goto player");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "h: toggle this help             tab: switch windows");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
       strcpy(buf, "m: toggle mark                  P: start playing");
       mvwaddstr(helpwin->win, i, j, buf);
-i++;
+      i++;
 
    }
    wnoutrefresh(helpwin->win);
@@ -1582,7 +1575,6 @@ void updateInfoWin() {
 
       strcpy(buf, "length:                size:");
       mvwaddstr(infowin->win, 1, 3, buf);
-/* mvwchgat(infowin->win, 1, 3, 5, A_BOLD, COLOR_CYAN, NULL);*/
 
       strcpy(buf, "bitrate:               frequency:");
       mvwaddstr(infowin->win, 2, 3, buf);
@@ -1888,7 +1880,7 @@ void gampInit() {
    progwin->ypos = 0;
    progwin->xpos = 0;
    progwin->wname = NULL;
-   progwin->wname = strdup("progwin");
+//   progwin->wname = strdup("progwin");
    progwin->min = 0;
    progwin->sec = 0;
    progwin->ipos = 0;
@@ -1904,7 +1896,6 @@ void gampInit() {
    volwin->xpos = 0;
    volwin->ypos = progwin->height;
    volwin->wname = NULL;
-   volwin->wname = strdup("volwin");
    volwin->vol = -1;
    volwin->max = 100;
    volwin->incr = 5;
@@ -1920,7 +1911,7 @@ void gampInit() {
    infowin->xpos = volwin->width;
    infowin->ypos = progwin->height;
    infowin->wname = NULL;
-   infowin->wname = strdup("infowin");
+//   infowin->wname = strdup("infowin");
    infowin->win = newwin(infowin->height, infowin->width, infowin->ypos, infowin->xpos);
    if (infowin->win == NULL) die("gampInit: newwin failure\n");
    box(infowin->win, 0, 0);
@@ -1933,7 +1924,7 @@ void gampInit() {
    dirwin->ypos = progwin->height;
    dirwin->xpos = 0;
    dirwin->wname = NULL;
-   dirwin->wname = strdup("dirwin");
+//   dirwin->wname = strdup("dirwin");
    dirwin->first = NULL;
    dirwin->cur = NULL;
    dirwin->list = NULL;
@@ -1949,7 +1940,7 @@ void gampInit() {
    listwin->ypos = dirwin->height + progwin->height; 
    listwin->xpos = 0;
    listwin->wname = NULL;
-   listwin->wname = strdup("listwin");
+//   listwin->wname = strdup("listwin");
    listwin->first = NULL;
    listwin->cur = NULL;
    listwin->list = NULL;
@@ -1959,7 +1950,7 @@ void gampInit() {
 
    helpwin = (HELPWIN *)malloc(sizeof(HELPWIN));
    if (helpwin == NULL) die("gampInit: malloc error\n");
-   helpwin->height = 20;
+   helpwin->height = 18;
    helpwin->width = 70;
    helpwin->active = FALSE;
    helpwin->ypos = (LINES - helpwin->height) / 2;
@@ -1970,7 +1961,7 @@ void gampInit() {
    if (helpwin->win == NULL) die("gampInit: newwin failure\n");
    box(helpwin->win, 0, 0);
    helpwin->wname = NULL;
-   helpwin->wname = strdup("helpwin");
+//   helpwin->wname = strdup("helpwin");
 
 }
 
@@ -2036,22 +2027,7 @@ int main(int argc, char **argv) {
    forkIt(); /* fork the player */
 
    initscr(); /* ncurses init stuff */
-   if (configuration.color) {
-      start_color();
-      if (has_colors()) {
-        init_pair(COLOR_BLACK, COLOR_BLACK, COLOR_BLACK);
-/*        color_set(0, NULL);*/
-        init_pair(COLOR_GREEN, COLOR_GREEN, COLOR_BLACK);
-        init_pair(COLOR_RED, COLOR_RED, COLOR_BLACK);
-        init_pair(COLOR_CYAN, COLOR_CYAN, COLOR_BLACK);
-        init_pair(COLOR_WHITE, COLOR_WHITE, COLOR_BLACK);
-        init_pair(COLOR_MAGENTA, COLOR_MAGENTA, COLOR_BLACK);
-        init_pair(COLOR_BLUE, COLOR_BLUE, COLOR_BLACK);
-        init_pair(COLOR_YELLOW, COLOR_YELLOW, COLOR_BLACK);
-
-      }
-   }
-   savetty();
+//   savetty();
    curs_set(0); /* invisible cursor */
    cbreak();
    noecho();
@@ -2066,14 +2042,6 @@ int main(int argc, char **argv) {
    pthread_detach(msg_thread);
 
    gampInit();
-   if (configuration.color) {
-     wcolor_set(progwin->win, COLOR_WHITE, NULL);
-     wcolor_set(listwin->win, COLOR_WHITE, NULL);
-     wcolor_set(infowin->win, COLOR_WHITE, NULL);
-     wcolor_set(volwin->win, COLOR_WHITE, NULL);
-     wcolor_set(helpwin->win, COLOR_WHITE, NULL);
-     wcolor_set(dirwin->win, COLOR_WHITE, NULL);
-   }
 
    /* keep going until we quit */
    while(func != QUIT) {
@@ -2129,4 +2097,3 @@ int exists(char *filename) {
    return(ret);
 
 }
-
