@@ -1,5 +1,17 @@
 CHANGES:
 
+   v0.2.2:
+   -fixed a bug where a mutex was left set so play would not work after a
+    play error or end of playlist was reached
+   -fixed a couple semi-random segfaluts
+
+   v0.2.1:
+   -fixed bug with command-line supplied start directory not working
+   -fixed segfault on debian when entering player
+   -fixed current pointer not going back to start of list when the list
+    finished playing
+   -fixed bug with randomizing while playing.
+
    v0.2.0:
    -multithreaded playback
    -can edit playlist while playing

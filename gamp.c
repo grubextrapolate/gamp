@@ -79,7 +79,7 @@ int first_loop;
 int last_loop;
 struct AUDIO_HEADER header;
 
-int cnt, err;
+int cnt;
 
 /* our windows */
 WINDOW *dirwin, *playwin, *helpwin, *titlewin, *mainwin;
@@ -92,9 +92,6 @@ ID3_tag *ptrtag;
  * name of the song in the titlewin.
  */
 int openAndSetup() {
-
-    /* lock so we're only doing one of open/close/read at a time */
-    pthread_mutex_lock(&readMut);
 
     if(stop == PLAYER) {
         clear_filename(titlewin);
@@ -109,6 +106,9 @@ int openAndSetup() {
     strcpy(filename, playlist.dirs[current]);
     strcat(filename, "/");
     strcat(filename, playlist.files[current]);
+
+    /* lock so we're only doing one of open/close/read at a time */
+    pthread_mutex_lock(&readMut);
 
     if (file_status == OPENED) {
         fclose(in_file);
@@ -128,12 +128,12 @@ int openAndSetup() {
 
     file_status = OPENED;
 
+    pthread_mutex_unlock(&readMut);
+
     /* initialize globals */
     append=data=nch=0;
     first_loop = FALSE;
     cnt = 0;
-
-    pthread_mutex_unlock(&readMut);
 
     return(0);
 }
@@ -157,6 +157,8 @@ int closeAndEnd() {
 
     file_status = CLOSED;
 
+    pthread_mutex_unlock(&readMut);
+
     current++;
 
     clear_filename(titlewin);
@@ -178,9 +180,7 @@ int closeAndEnd() {
         return(-1);
     }
 
-    pthread_mutex_unlock(&readMut);
-
-    return (0);
+    return(0);
 
 }
 
@@ -190,6 +190,8 @@ int closeAndEnd() {
  * via the get_time function.
  */
 int playFrame() {
+
+    int retval = 0;
 
     /* lock so we're only doing one of open/close/read at a time */
     pthread_mutex_lock(&readMut);
@@ -215,7 +217,7 @@ int playFrame() {
 
         if (layer3_frame(&header,cnt)) {
             warn(" error. blip.\n");
-            err=1;
+            retval = 1;
             last_loop = TRUE;
         } else
             cnt++;
@@ -224,7 +226,7 @@ int playFrame() {
 
     pthread_mutex_unlock(&readMut);
 
-    return 0;
+    return(retval);
 
 }
 
@@ -580,7 +582,6 @@ int play_playlist(int argc, char *argv[]) {
         last_loop = FALSE;
 
         cnt = 0;
-        err = 0;
     }
 
     init_player();
@@ -797,6 +798,7 @@ int edit_playlist(int argc, char *argv[]) {
                     pthread_cond_signal(&cond);
                     pthread_mutex_unlock(&mut);
                 }
+                current = -1;
                 init_playlist();
                 wclear(playwin);
                 box(playwin, 0, 0);
@@ -984,7 +986,6 @@ int main(int argc, char **argv) {
 
     length = 0;
     cnt = 0;
-    err = 0;
 
     start_dir[0] = '\0';
  
