@@ -1,0 +1,39 @@
+amp0.7 TODO file
+================
+
+###---> 0.8
+
+check what happens if table 4or 14 comes up (4 is 5, 14 is 15, according to IIS)
+
+indicate that 'free format is not supported', just in case someone comes up with such a stream,
+or make provisions to decode it
+
+check if EOF when gethdr() doesn't return 0, if not, indicate synchronization error
+
+redo antialiasing butterflies to use less multiplications (use ptr. arithm)
+
+no_of_imdcts is not calculated with requantize_mono, just set to 32. fix it. 
+
+let the counter display minutes:seconds instead of a frame count
+
+implement parse-only mode - should be useful, also quality debug output
+
+clean up wave header writing
+
+layers 1&2
+
+###---> 0.9
+
+a GUI
+
+CRC checking
+
+Netscape helper application (look into that)
+
+impose a limit on processor power spent
+
+build binary and RPM distributions
+
+###---> 1.0
+
+nothing special, just make it a good, reliable piece of software

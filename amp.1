@@ -1,0 +1,45 @@
+.TH AMP 1 "March  3 1997"
+.SH NAME
+amp \- decompress an MPEG audio file to a wave file
+.SH SYNOPSIS
+.B amp 
+[
+.I options
+]
+[
+.I MPEG audio bitstream 
+]
+[
+.I wave file 
+]
+.LP
+.SH DESCRIPTION
+.LP
+.B amp
+decompresses the named MPEG audio file. This is an early release (0.7), so only layer3 bitstreams are supported. 
+.B amp 
+is capable of decoding both MPEG-1 and MPEG-2 audio bitstreams. THIS PAGE IS NOT
+UP TO DATE, USE amp -h INSTEAD.
+.SH OPTIONS
+The options are:
+.TP
+.BI \-c
+display a simple counter. the counter value represents the number of frames decoded.
+.TP
+.BI \-s
+supress messages to standard output
+.TP
+.BI \-w
+write a .wav file instead of raw pcm
+.TP
+.BI \-p
+play decoded bitstream directly through an audio device (system dependent)
+.SH ENVIRONMENT
+.TP
+No special environment variables.
+.SH AUTHOR
+Tomislav Uzelac   <tuzelac@rasip.fer.hr>
+.SH BUGS
+There are more bugs than features right now I guess.
+.PP
+Still not as fast as I'd like it.

@@ -1,0 +1,16 @@
+Begin3
+Title:          amp
+Version:        0.7.3
+Entered-date:   21APR97
+Description:    Audio MPEG Player
+                MPEG1,2 layer3
+Keywords:       MPEG, Audio, Sound, layer3, mp3
+Author:         tuzelac@rasip.fer.hr  (Tomislav Uzelac)
+Maintained-by:  
+Primary-site:   sunsite.unc.edu /pub/Linux/ALPHA/sound
+                93k amp-0.7.3.tgz
+Alternate-site: tsx-11.mit.edu /pub/linux/ALPHA/amp
+Original-site:  
+Platforms:      
+Copying-policy: stricter than GPL
+End
