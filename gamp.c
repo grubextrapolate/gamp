@@ -1,4 +1,4 @@
-/* gamp.c v0.1.5
+/* gamp.c v0.1.6
    by grub <grub@toast.net> and borys <borys@bill3.ncats.net>
 
    ncurses based command line interface to amp. has a directory browser
@@ -18,8 +18,7 @@
    FIX ME:
 
    -still some problems with the player. once you go back to the playlist
-    and return to the player it is really loud/distorted. have also seen
-    some segfaults on song completion.
+    and return to the player it is really loud/distorted.
    -playlist randomizer segfaults.
 
    TODO (the big list):
@@ -33,6 +32,10 @@
    -any other cool items we can think of
 
    CHANGES:
+
+   v0.1.6:
+   -bugfix and minor cosmetic changes.
+   -added help window in playlist editor.
 
    v0.1.5:
    -it plays better now
@@ -171,7 +174,7 @@ void statusDisplay(WINDOW *win, struct AUDIO_HEADER *header, int frameNo) {
 	minutes=seconds/60;
 	seconds=seconds % 60;
 
-	sprintf(tmpstr, "[%2d:%02d]", minutes, seconds);
+	sprintf(tmpstr, " [%2d:%02d]", minutes, seconds);
         mvwaddstr(win, 1, 1, tmpstr);
         refresh();
         wnoutrefresh(win);
@@ -297,7 +300,7 @@ void fillwin(WINDOW *win, STRLIST *list, int first, int width, int height) {
 void show_filename(WINDOW *win, STRLIST *list, int index) {
     char dirfilecat[150];
 
-    strcpy(dirfilecat, "        ");
+    strcpy(dirfilecat, "         ");
     strcat(dirfilecat, list->files[index]);
     strtrunc(dirfilecat, COLS-2);
 
@@ -324,6 +327,7 @@ int play_playlist(int argc, char *argv[]) {
     int first_loop = TRUE;
     int last_loop = FALSE;
     struct AUDIO_HEADER header;
+
     int cnt = 0, err = 0;
 
     /* premultiply dewindowing tables.  Should go away */
@@ -342,7 +346,7 @@ int play_playlist(int argc, char *argv[]) {
     box(mainwin, 0, 0);
     box(helpwin, 0, 0);
 
-    strcpy(filename, "Play Stop pLaylist Quit Ffwd Rew Next preV pAuse");
+    strcpy(filename, " Play Stop pLaylist Quit Ffwd Rew Next preV pAuse");
     mvwaddstr(helpwin, 1, 1, filename);
 
     /* refresh screen */
@@ -364,8 +368,10 @@ int play_playlist(int argc, char *argv[]) {
         ch = wgetch(titlewin);
         switch(ch) {
             case 'q': /* quit program */
-                fclose(in_file);
-                audioBufferClose();
+                if (play == PLAY) {
+                    fclose(in_file);
+                    audioBufferClose();
+                }
 
                 last_loop = FALSE;
                 first_loop = TRUE;
@@ -446,16 +452,6 @@ int play_playlist(int argc, char *argv[]) {
                 stop = GOTO_EDITOR;
                 break;
 
-            case 'h': /* show key help info */
-                strcpy(filename, "Play Stop pLaylist Quit Ffwd Rew Next preV pAuse");
-                mvwaddstr(helpwin, 1, 1, filename);
-                refresh();
-                wnoutrefresh(titlewin);
-                wnoutrefresh(mainwin);
-                wnoutrefresh(helpwin);
-                doupdate();
-                break;
-
         }
 
         if (play == PLAY) {
@@ -488,21 +484,25 @@ int play_playlist(int argc, char *argv[]) {
             if (processHeader(&header,cnt))
                 last_loop = TRUE;
 
-            statusDisplay(titlewin, &header, cnt);
+            else {
 
-            /* setup the audio when we have the frame info */
-            if (!cnt) {
+                statusDisplay(titlewin, &header, cnt);
 
-                /* audioOpen(frequency, stereo, volume) */
-                audioBufferOpen(t_sampling_frequency[header.ID][header.sampling_frequency],
-                                (header.mode!=3),A_SET_VOLUME);
+                /* setup the audio when we have the frame info */
+                if (!cnt) {
+
+                    /* audioOpen(frequency, stereo, volume) */
+                    audioBufferOpen(t_sampling_frequency[header.ID][header.sampling_frequency],
+                                    (header.mode!=3),A_SET_VOLUME);
+                }
+
+                if (layer3_frame(&header,cnt)) {
+                    warn(" error. blip.\n");
+                    err=1;
+                    last_loop = TRUE;
+                } 
+
             }
-
-            if (layer3_frame(&header,cnt)) {
-                warn(" error. blip.\n");
-                err=1;
-                last_loop = TRUE;
-            } 
 
             cnt++;
 
@@ -535,18 +535,19 @@ int play_playlist(int argc, char *argv[]) {
 
 int edit_playlist(int argc, char *argv[]) {
 
-    WINDOW *dirwin, *playwin;  /* our two windows */
+    WINDOW *dirwin, *playwin, *helpwin;  /* our two windows */
     int stop = CONT; /* stopping condition for the program */
     int y = 1;       /* the y position (within a given window) */
     int win = 0;     /* window number. 0=dirwin, 1=playwin */
+    int i = 0;       /* loop counter */
 
     int dirwin_width, playwin_width;    /* width of our windows */
     int dirwin_height, playwin_height;  /* height of our windows */
     int dirwin_first = 0, playwin_first = 0; /* first item in window */
     int dirwin_start, playwin_start; /* starting position of windows */
 
-    dirwin_height = LINES/2;  /* window sizes */
-    playwin_height = LINES - dirwin_height;
+    dirwin_height = (LINES - 3)/2;  /* window sizes */
+    playwin_height = LINES - dirwin_height - 3;
     dirwin_width = COLS;
     playwin_width = COLS;
 
@@ -556,6 +557,7 @@ int edit_playlist(int argc, char *argv[]) {
     /* create windows */
     dirwin =  newwin(dirwin_height, 0, 0, 0);
     playwin = newwin(playwin_height, 0, dirwin_height, 0);
+    helpwin = newwin(3, 0, dirwin_height + playwin_height, 0);
 
     /* draw boxes in windows and fill them with something */
     box(dirwin, 0, 0);
@@ -564,11 +566,16 @@ int edit_playlist(int argc, char *argv[]) {
     box(playwin, 0, 0);
     fillwin(playwin, &playlist, playwin_first,
             playwin_width, playwin_height);
+    box(helpwin, 0, 0);
+
+    strcpy(tmpstr, " Quit Clear All (tab)switch (left)remove (right)add/browse");
+    mvwaddstr(helpwin, 1, 1, tmpstr);
 
     /* refresh screen */
     refresh();
     wnoutrefresh(dirwin);
     wnoutrefresh(playwin);
+    wnoutrefresh(helpwin);
     doupdate();
 
     /* move cursor to its start position */
@@ -593,6 +600,15 @@ int edit_playlist(int argc, char *argv[]) {
                 init_playlist();
                 wclear(playwin);
                 box(playwin, 0, 0);
+                break;
+
+            case 'a': /* add all in current directory */
+                for (i = 0; i < dirlist.cur; i++) {
+                    if (isfile(&dirlist, i))
+                        add(&playlist, cwd, dirlist.files[i]);
+                }
+                fillwin(playwin,&playlist,playwin_first,
+                        playwin_width, playwin_height);
                 break;
 
             case KEY_UP: /* move up in window, scroll if needed */
@@ -681,12 +697,14 @@ int edit_playlist(int argc, char *argv[]) {
         move(y + win*dirwin_height, 1);
         wnoutrefresh(dirwin);
         wnoutrefresh(playwin);
+        wnoutrefresh(helpwin);
         doupdate();
 
     }
 
     delwin(playwin);
     delwin(dirwin);
+    delwin(helpwin);
 
     return stop;
 
