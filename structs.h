@@ -48,8 +48,9 @@ typedef struct VOLWIN {
    int width;
    int xpos;
    int ypos;
-   int left;
-   int right;
+   int vol;
+   int max;
+   int incr;
 } VOLWIN;
 
 typedef struct INFOWIN {

@@ -29,10 +29,10 @@ LISTWIN *dirwin = NULL; /* direcory list window (in editor) */
 LISTWIN *listwin = NULL; /* listwin->list window (in editor) */
 
 VOLWIN *volwin = NULL;
-WINDOW *progwin = NULL; /* progress/time/song window */
+INFOWIN *progwin = NULL; /* progress/time/song window */
 
 INFOWIN *infowin = NULL; /* info window */
-WINDOW *helpwin = NULL; /* popup help window */
+INFOWIN *helpwin = NULL; /* popup help window */
 
 /*
  * list of directory tree traversal so <-- can act as 'back' button in
@@ -110,22 +110,22 @@ void initDirlist(char *pwd, ITEMLIST **list) {
  */
 void initPlayer() {
 
-   if (progwin == NULL) {
+   if (progwin->win == NULL) {
       if (curState & playState)
-         showFilename(progwin, curSong);
+         showFilename(progwin->win, curSong);
 
       if (configuration.repeatMode == repeatOne)
-         mvwaddstr(progwin, 1, 1, "r");
+         mvwaddstr(progwin->win, 1, 1, "r");
       else if (configuration.repeatMode == repeatAll)
-         mvwaddstr(progwin, 1, 1, "R");
+         mvwaddstr(progwin->win, 1, 1, "R");
 
    } else {
-      touchwin(progwin);
+      touchwin(progwin->win);
    }
 
    /* refresh screen */
    refresh();
-   wnoutrefresh(progwin);
+   wnoutrefresh(progwin->win);
    doupdate();
 
 }
@@ -140,20 +140,22 @@ int playPlaylist() {
 
    initPlayer();
 
-   if (helpwin != NULL) {
+   if (helpwin->win != NULL) {
       toggleHelpWin();
       toggleHelpWin();
    }
    if (infowin->win == NULL) {
-      toggleInfoWin();
+//      toggleInfoWin();
    } else {
-      touchwin(infowin->win);
-      wnoutrefresh(infowin->win);
-      touchwin(volwin->win);
-      wnoutrefresh(volwin->win);
+//      touchwin(infowin->win);
+//      wnoutrefresh(infowin->win);
+//      touchwin(volwin->win);
+//      wnoutrefresh(volwin->win);
    }
 
    /* refresh screen */
+   updateInfoWin();
+   updateVolWin();
    updateListWin(listwin);
    doupdate();
 
@@ -185,10 +187,6 @@ int playPlaylist() {
 
          case 'h': /* show/remove help window */
             toggleHelpWin();
-            break;
-
-         case 'i': /* show/remove mp3 info */
-            toggleInfoWin();
             break;
 
          case 'f': /* ffwd */
@@ -253,15 +251,15 @@ int playPlaylist() {
          case 'R': /* cycle repeat mode through none/one/all */
             if (configuration.repeatMode == repeatNone) {
                configuration.repeatMode = repeatOne;
-               mvwaddstr(progwin, 1, 1, "r");
+               mvwaddstr(progwin->win, 1, 1, "r");
             } else if (configuration.repeatMode == repeatOne) {
                configuration.repeatMode = repeatAll;
-               mvwaddstr(progwin, 1, 1, "R");
+               mvwaddstr(progwin->win, 1, 1, "R");
             } else if (configuration.repeatMode == repeatAll) {
                configuration.repeatMode = repeatNone;
-               mvwaddstr(progwin, 1, 1, " ");
+               mvwaddstr(progwin->win, 1, 1, " ");
             }
-            wnoutrefresh(progwin);
+            wnoutrefresh(progwin->win);
             doupdate();
             if (configuration.dirty == 0) configuration.dirty = 1;
             break;
@@ -281,13 +279,13 @@ int playPlaylist() {
             wresize(listwin->win, listwin->height, COLS);
 //            finishPlayer();
 //            initPlayer();
-            if (helpwin != NULL) {
+            if (helpwin->win != NULL) {
                toggleHelpWin();
                toggleHelpWin();
             }
             if (infowin->win != NULL) {
-               toggleInfoWin();
-               toggleInfoWin();
+//               toggleInfoWin();
+//               toggleInfoWin();
             }
             break;
 
@@ -305,14 +303,16 @@ int playPlaylist() {
 
 void initVolume() {
 
-
+   getVolume(volwin);
 }
 
 void volUp(CONFIGURATION *config) {
 
    if ((config->volup != NULL) && (config->volup[0] != '\0')) {
       system(config->volup);
-      initVolume();
+      volwin->vol += volwin->incr;
+      if (volwin->vol > volwin->max) volwin->vol = volwin->max;
+      updateVolWin();
    }
 }
 
@@ -320,7 +320,56 @@ void volDown(CONFIGURATION *config) {
 
    if ((config->voldown != NULL) && (config->voldown[0] != '\0')) {
       system(config->voldown);
-      initVolume();
+      volwin->vol -= volwin->incr;
+      if (volwin->vol < 0) volwin->vol = 0;
+      updateVolWin();
+   }
+}
+
+void getVolume(VOLWIN *volwin) {
+
+   char buf[MAX_STRLEN];
+   int mrec[3];
+// volwin->vol = system("aumix -w q | awk '{print $2}' | awk -F ',' '{print $1}'";
+
+   volwin->vol = 50;
+
+   if ((fork_pid = fork()) == 0) {
+      dup2(mrec[0], STDOUT_FILENO);
+      close(mrec[0]);
+      close(mrec[1]);
+      system("aumix -w q | awk '{print $2}' | awk -F ',' '{print $1}'");
+
+      read(mrec[0], buf, sizeof(buf));
+      debug("getVolume: buf=\"%s\"\n", buf);
+   }
+}
+
+void updateVolWin() {
+
+   int i, maxy, maxx, height;
+   char tmpstr[MAX_STRLEN];
+
+   if (volwin->win != NULL) {
+      maxy = volwin->height - 2;
+      maxx = volwin->width - 2;
+
+      for (i = 0; i < maxx; i++)
+         tmpstr[i] = '*';
+      tmpstr[maxx] = '\0';
+
+      height = (maxy*volwin->vol)/volwin->max;
+
+      wmove(volwin->win, 0, 0);
+      wclrtobot(volwin->win);
+      box(volwin->win, 0, 0);
+
+      if (height > 0) {
+         for (i = 0; i < height; i++)
+            mvwaddstr(volwin->win, maxy - i, 1, tmpstr);
+      }
+      wnoutrefresh(volwin->win);
+      doupdate();
    }
 }
 
@@ -461,7 +510,7 @@ int editPlaylist() {
    /* draw boxes in windows and fill them with something */
    updateListWin(dirwin);
    updateListWin(listwin);
-   if (helpwin != NULL) {
+   if (helpwin->win != NULL) {
       toggleHelpWin();
       toggleHelpWin();
    }
@@ -997,7 +1046,7 @@ int editPlaylist() {
          case 12: /* ctrl-l (refresh) */
             updateListWin(dirwin);
             updateListWin(listwin);
-            if (helpwin != NULL) {
+            if (helpwin->win != NULL) {
                toggleHelpWin();
                toggleHelpWin();
             }
@@ -1008,9 +1057,9 @@ int editPlaylist() {
       }
       wnoutrefresh(dirwin->win);
       wnoutrefresh(listwin->win);
-      if (helpwin != NULL) {
-         touchwin(helpwin);
-         wnoutrefresh(helpwin);
+      if (helpwin->win != NULL) {
+         touchwin(helpwin->win);
+         wnoutrefresh(helpwin->win);
       }
       doupdate();
 
@@ -1213,7 +1262,7 @@ void updateSongTime(int cur_frame) {
    int minutes = 0;
    int seconds = 0;
 
-   if ((progwin != NULL) && (curSong != NULL)) {
+   if ((progwin->win != NULL) && (curSong != NULL)) {
       seconds = (cur_frame*32)/1225;
  
       /* if the player doesnt send info then we cant do remaining time */
@@ -1246,8 +1295,8 @@ void updateSongTime(int cur_frame) {
             sprintf(tmpstr, "[%3d:%02d] ", minutes, seconds);
          }
       }
-      mvwaddstr(progwin, 1, 2, tmpstr);
-      wnoutrefresh(progwin);
+      mvwaddstr(progwin->win, 1, 2, tmpstr);
+      wnoutrefresh(progwin->win);
       doupdate();
    }
 }
@@ -1259,9 +1308,9 @@ void updateSongPosition(double pos) {
    int i, j;
    char tmpstr[MAX_STRLEN];
 
-   if (progwin != NULL) {
-      j = (progwin->_maxx - 1)*pos;
-      for (i = 0; i < (progwin->_maxx - 1); i++) {
+   if (progwin->win != NULL) {
+      j = (progwin->win->_maxx - 1)*pos;
+      for (i = 0; i < (progwin->win->_maxx - 1); i++) {
          if (i < j)
             tmpstr[i] = '=';
          else if (i == j)
@@ -1269,9 +1318,9 @@ void updateSongPosition(double pos) {
          else /* (i > j) */
             tmpstr[i] = '-';
       }
-      tmpstr[progwin->_maxx - 1] = '\0';
-      mvwaddstr(progwin, 2, 1, tmpstr);
-      wnoutrefresh(progwin);
+      tmpstr[progwin->win->_maxx - 1] = '\0';
+      mvwaddstr(progwin->win, 2, 1, tmpstr);
+      wnoutrefresh(progwin->win);
       doupdate();
    }
 }
@@ -1335,21 +1384,21 @@ void updatePlaying(ITEM *sng) {
       fprintf(stderr, "\033]0;%s\007", curSong->name);
 
    debug("updatePlaying:sng->name=%s\n", sng->name);
-   showFilename(progwin, sng);
+   showFilename(progwin->win, sng);
 }
 
 /*
  * clears filename and progress windows
  */
 void updateStopped() {
-   debug("updateStopped: clearing progwin\n");
+   debug("updateStopped: clearing progwin->win\n");
 
    if (func == PLAYER) {
-      wmove(progwin, 0, 0);
-      wclrtobot(progwin);
+      wmove(progwin->win, 0, 0);
+      wclrtobot(progwin->win);
 
-      box(progwin, 0, 0);
-      wnoutrefresh(progwin);
+      box(progwin->win, 0, 0);
+      wnoutrefresh(progwin->win);
       updateInfoWin();
       doupdate();
    }
@@ -1376,7 +1425,7 @@ void toggleHelpWin() {
    int helpWidth = 50, helpHeight = 12;
    char buf[MAX_STRLEN];
 
-   if (helpwin == NULL) { /* no help showing currently, so display it */
+   if (helpwin->win == NULL) { /* no help showing currently, so display it */
 
       x_offset = (COLS - helpWidth) / 2;
       y_offset = (LINES - helpHeight) / 2;
@@ -1384,68 +1433,68 @@ void toggleHelpWin() {
       if (x_offset < 0) x_offset = 0;
       if (y_offset < 0) y_offset = 0;
 
-      helpwin = newwin(helpHeight, helpWidth, y_offset, x_offset);
-      if (helpwin == NULL) die("toggleHelp: newwin failure\n");
-      box(helpwin, 0, 0);
+      helpwin->win = newwin(helpHeight, helpWidth, y_offset, x_offset);
+      if (helpwin->win == NULL) die("toggleHelp: newwin failure\n");
+      box(helpwin->win, 0, 0);
 
       if (func == PLAYER) {
 
          strcpy(buf, "p: play                 s: stop");
-         mvwaddstr(helpwin, 2, 3, buf);
+         mvwaddstr(helpwin->win, 2, 3, buf);
          strcpy(buf, "f: start/end ffwd       r: start/end rew");
-         mvwaddstr(helpwin, 3, 3, buf);
+         mvwaddstr(helpwin->win, 3, 3, buf);
          strcpy(buf, "n: next                 v: prev");
-         mvwaddstr(helpwin, 4, 3, buf);
+         mvwaddstr(helpwin->win, 4, 3, buf);
          strcpy(buf, "a: pause                q: quit");
-         mvwaddstr(helpwin, 5, 3, buf);
+         mvwaddstr(helpwin->win, 5, 3, buf);
          strcpy(buf, "l: goto playlist        h: toggle help");
-         mvwaddstr(helpwin, 7, 3, buf);
+         mvwaddstr(helpwin->win, 7, 3, buf);
          strcpy(buf, "m: toggle mini-list     t: toggle time");
-         mvwaddstr(helpwin, 8, 3, buf);
+         mvwaddstr(helpwin->win, 8, 3, buf);
          strcpy(buf, "i: toggle info          R: cycle repeat mode");
-         mvwaddstr(helpwin, 9, 3, buf);
+         mvwaddstr(helpwin->win, 9, 3, buf);
 
       } else { /* PLAYLIST */
 
          strcpy(buf, "a: add all files        A: add recursively");
-         mvwaddstr(helpwin, 1, 3, buf);
+         mvwaddstr(helpwin->win, 1, 3, buf);
          strcpy(buf, "left: remove/cd ..      right: add/chdir/play");
-         mvwaddstr(helpwin, 2, 3, buf);
+         mvwaddstr(helpwin->win, 2, 3, buf);
          strcpy(buf, "space: page down        -: page up");
-         mvwaddstr(helpwin, 3, 3, buf);
+         mvwaddstr(helpwin->win, 3, 3, buf);
          strcpy(buf, "down: move down         up: move up");
-         mvwaddstr(helpwin, 4, 3, buf);
+         mvwaddstr(helpwin->win, 4, 3, buf);
          strcpy(buf, "u: move song up         d: move song down");
-         mvwaddstr(helpwin, 5, 3, buf);
+         mvwaddstr(helpwin->win, 5, 3, buf);
          strcpy(buf, "r: randomize list       o: sort list");
-         mvwaddstr(helpwin, 6, 3, buf);
+         mvwaddstr(helpwin->win, 6, 3, buf);
          strcpy(buf, "l: load playlist        s: save playlist");
-         mvwaddstr(helpwin, 7, 3, buf);
+         mvwaddstr(helpwin->win, 7, 3, buf);
          strcpy(buf, "c: clear playlist       h: toggle this help");
-         mvwaddstr(helpwin, 8, 3, buf);
+         mvwaddstr(helpwin->win, 8, 3, buf);
          strcpy(buf, "q: quit                 p: goto player");
-         mvwaddstr(helpwin, 9, 3, buf);
+         mvwaddstr(helpwin->win, 9, 3, buf);
          strcpy(buf, "tab: switch windows");
-         mvwaddstr(helpwin, 10, 3, buf);
+         mvwaddstr(helpwin->win, 10, 3, buf);
 
       }
-      wnoutrefresh(helpwin);
+      wnoutrefresh(helpwin->win);
 
    } else { /* help being displayed, so destroy it */
 
       if (func == PLAYER) {
-         delwin(helpwin);
-         helpwin = NULL;
+         delwin(helpwin->win);
+         helpwin->win = NULL;
          refresh();
          if (infowin->win != NULL) {
             touchwin(infowin->win);
             wnoutrefresh(infowin->win);
          }
       } else { /* PLAYLIST */
-         delwin(helpwin);
+         delwin(helpwin->win);
          touchwin(dirwin->win);
          touchwin(listwin->win);
-         helpwin = NULL;
+         helpwin->win = NULL;
          refresh();
          wnoutrefresh(dirwin->win);
          wnoutrefresh(listwin->win);
@@ -1592,9 +1641,9 @@ void toggleInfoWin() {
          infowin->win = NULL;
 
          refresh();
-         if (helpwin != NULL) {
-            touchwin(helpwin);
-            wnoutrefresh(helpwin);
+         if (helpwin->win != NULL) {
+            touchwin(helpwin->win);
+            wnoutrefresh(helpwin->win);
          }
       }
 
@@ -1851,57 +1900,86 @@ void displayVersion() {
 
 void gampInit() {
 
-   dirwin = (LISTWIN *)malloc(sizeof(LISTWIN));
-   if (dirwin == NULL) die("gampInit: malloc error\n");
-   dirwin->active = TRUE;
-   dirwin->height = 11;
-
-   dirwin->win = newwin(dirwin->height, 0, 4, 0);
-   if (dirwin->win == NULL) die("gampInit: newwin failure\n");
-   box(dirwin->win, 0, 0);
-
-   listwin = (LISTWIN *)malloc(sizeof(LISTWIN));
-   if (listwin == NULL) die("gampInit: malloc error\n");
-   listwin->active = FALSE;
-   listwin->height = LINES - dirwin->height - 4;
-
-   listwin->win = newwin(listwin->height, 0, dirwin->height+4, 0);
-   if (listwin->win == NULL) die("gampInit: newwin failure\n");
-   box(listwin->win, 0, 0);
+   progwin = (INFOWIN *)malloc(sizeof(INFOWIN));
+   if (progwin == NULL) die("gampInit: malloc error\n");
+   progwin->height = 4;
+   progwin->width = 0;
+   progwin->ypos = 0;
+   progwin->xpos = 0;
+   progwin->win = newwin(progwin->height, progwin->width, progwin->ypos, progwin->xpos);
+   if (progwin->win == NULL) die("gampInit: newwin failure\n");
+   box(progwin->win, 0, 0);
 
    volwin = (VOLWIN *)malloc(sizeof(VOLWIN));
    if (volwin == NULL) die("gampInit: malloc error\n");
    volwin->height = 11;
    volwin->width = 4;
    volwin->xpos = 0;
-   volwin->ypos = 4;
+   volwin->ypos = progwin->height;
+   volwin->vol = -1;
+   volwin->max = 100;
+   volwin->incr = 5;
+   getVolume(volwin);
    volwin->win = newwin(volwin->height, volwin->width, volwin->ypos, volwin->xpos);
    if (volwin->win == NULL) die("gampInit: newwin failure\n");
    box(volwin->win, 0, 0);
 
    infowin = (INFOWIN *)malloc(sizeof(INFOWIN));
    if (infowin == NULL) die("gampInit: malloc error\n");
-   infowin->height = 11;
-   infowin->width = COLS - 4;
-   infowin->xpos = 4;
-   infowin->ypos = 4;
+   infowin->height = volwin->height;
+   infowin->width = COLS - volwin->width;
+   infowin->xpos = volwin->width;
+   infowin->ypos = progwin->height;
    infowin->win = newwin(infowin->height, infowin->width, infowin->ypos, infowin->xpos);
    if (infowin->win == NULL) die("gampInit: newwin failure\n");
    box(infowin->win, 0, 0);
 
-   progwin = newwin(4, 0, 0, 0);
-   if (progwin == NULL) die("gampInit: newwin failure\n");
-   box(progwin, 0, 0);
+   dirwin = (LISTWIN *)malloc(sizeof(LISTWIN));
+   if (dirwin == NULL) die("gampInit: malloc error\n");
+   dirwin->active = TRUE;
+   dirwin->height = volwin->height;
+   dirwin->width = 0;
+   dirwin->ypos = progwin->height;
+   dirwin->xpos = 0;
+   dirwin->first = NULL;
+   dirwin->cur = NULL;
+   dirwin->list = NULL;
+   dirwin->win = newwin(dirwin->height, dirwin->width, dirwin->ypos, dirwin->xpos);
+   if (dirwin->win == NULL) die("gampInit: newwin failure\n");
+   box(dirwin->win, 0, 0);
 
-   toggleInfoWin();
+   listwin = (LISTWIN *)malloc(sizeof(LISTWIN));
+   if (listwin == NULL) die("gampInit: malloc error\n");
+   listwin->active = FALSE;
+   listwin->height = LINES - dirwin->height - progwin->height;
+   listwin->width = 0;
+   listwin->ypos = dirwin->height + progwin->height; 
+   listwin->xpos = 0;
+   listwin->first = NULL;
+   listwin->cur = NULL;
+   listwin->list = NULL;
+   listwin->win = newwin(listwin->height, listwin->width, listwin->ypos, listwin->xpos);
+   if (listwin->win == NULL) die("gampInit: newwin failure\n");
+   box(listwin->win, 0, 0);
 
+   helpwin = (INFOWIN *)malloc(sizeof(INFOWIN));
+   if (helpwin == NULL) die("gampInit: malloc error\n");
+   helpwin->height = 12;
+   helpwin->width = 50;
+   helpwin->ypos = (LINES - helpwin->height) / 2;
+   if (helpwin->ypos < 0) helpwin->ypos = 0;
+   helpwin->xpos = (COLS - helpwin->width) / 2;
+   if (helpwin->xpos < 0) helpwin->xpos = 0;
+   helpwin->win = NULL;
+
+//   toggleInfoWin();
 }
 
 void gampFinish() {
 
-   if (progwin != NULL) {
-      delwin(progwin);
-      progwin = NULL;
+   if (progwin->win != NULL) {
+      delwin(progwin->win);
+      progwin->win = NULL;
    }  
    if (dirwin->win != NULL) {
       delwin(dirwin->win);

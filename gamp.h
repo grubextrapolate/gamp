@@ -93,13 +93,14 @@ extern int exists(char *);
 
 extern void volUp();
 extern void volDown();
+extern void getVolume(VOLWIN *);
 
 /* windows */
 extern LISTWIN *dirwin; /* direcory list window */
 extern LISTWIN *listwin; /* playlist window */
 extern INFOWIN *infowin; /* info window */
-extern WINDOW *progwin; /* progress/title/time window */
-extern WINDOW *helpwin; /* popup help window */
+extern INFOWIN *progwin; /* progress/title/time window */
+extern INFOWIN *helpwin; /* popup help window */
 extern VOLWIN *volwin; /* volume window */
 
 /* player configuration */
