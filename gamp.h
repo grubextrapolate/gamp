@@ -1,5 +1,3 @@
-#include <curses.h>
-#include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -122,8 +120,8 @@ void randomize_list(STRLIST *list) {
 }
 
 void free_list(STRLIST *list) {
-    if(list && list->files) {
-        while(list->cur--) {
+    if ((list && list->files) || (list && list->dirs)) {
+        while (list->cur--) {
            free(list->files[list->cur]);
            free(list->dirs[list->cur]);
         }

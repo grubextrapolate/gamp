@@ -1,4 +1,4 @@
-/* gamp.c v0.1.0
+/* gamp.c v0.1.1
    by grub <grub@toast.net> and borys <borys@bill3.ncats.net>
 
    ncurses based command line interface to amp. has a directory browser
@@ -83,6 +83,18 @@ int AUDIO_BUFFER_SIZE = 300*1024;
 int A_SET_VOLUME = -1;
 int A_AUDIO_PLAY = TRUE;
 
+int CONT=0;
+int QUIT=1;
+int GOTO_EDITOR=2;
+int GOTO_PLAYER=3;
+
+int STOP=4;
+int NEXT=5;
+int PREV=6;
+int FFWD=7;
+int REW=8;
+int PAUSE=9;
+int PLAY=10;
 
 int inline processHeader(struct AUDIO_HEADER *header, int cnt) {
     int g;
@@ -208,7 +220,6 @@ int ismp3(char *name) {
 }
 
 void init_playlist(void) {
-
     free_list(&playlist);
     init_list(&playlist, 20);
 }
@@ -323,8 +334,8 @@ void clear_filename(WINDOW *win) {
 
 int play_playlist(int argc, char *argv[]) {
     WINDOW *titlewin, *helpwin, *mainwin;  /* our window */
-    int stop = 0;   /* stopping condition for the program */
-    int play = 0;
+    int stop = CONT;   /* stopping condition for the program */
+    int play = STOP;
     int current = 0;
     int ch;
     char filename[255];
@@ -358,9 +369,9 @@ int play_playlist(int argc, char *argv[]) {
     /* move cursor to its start position */
     move(1,1);
 
-    while(!stop) {
+    while(stop == CONT) {
 
-        if (play == 1 && current < playlist.cur) {
+        if (play == PLAY && current < playlist.cur) {
             show_filename(titlewin, &playlist, current);
             refresh();
             wnoutrefresh(titlewin);
@@ -380,7 +391,7 @@ int play_playlist(int argc, char *argv[]) {
 
             current++;
             if (current == playlist.cur) {
-                play = 0;
+                play = STOP;
                 current = 0;
             }
         }
@@ -390,22 +401,47 @@ int play_playlist(int argc, char *argv[]) {
         switch(ch) {
             case 'q': /* quit program */
                 move(1, 1);
-                stop = 1;
+                stop = QUIT;
                 break;
 
             case 'p': /* play */
                 move(1, 1);
-                play = 1;
+                play = PLAY;
+                break;
+
+            case 'f': /* ffwd */
+                move(1, 1);
+                play = FFWD;
+                break;
+
+            case 'r': /* rew */
+                move(1, 1);
+                play = REW;
+                break;
+
+            case 'n': /* next */
+                move(1, 1);
+                play = NEXT;
+                break;
+
+            case 'v': /* prev */
+                move(1, 1);
+                play = PREV;
+                break;
+
+            case 'a': /* pause */
+                move(1, 1);
+                play = PAUSE;
                 break;
 
             case 's': /* stop */
                 move(1, 1);
-                play = 0;
+                play = STOP;
                 break;
 
             case 'l': /* back to playlist */
                 move(1, 1);
-                stop = 3;
+                stop = GOTO_EDITOR;
                 break;
 
         }
@@ -427,7 +463,7 @@ int play_playlist(int argc, char *argv[]) {
 int edit_playlist(int argc, char *argv[]) {
 
     WINDOW *dirwin, *playwin;  /* our two windows */
-    int stop = 0;   /* stopping condition for the program */
+    int stop = CONT; /* stopping condition for the program */
     int y = 1;       /* the y position (within a given window) */
     int win = 0;     /* window number. 0=dirwin, 1=playwin */
 
@@ -473,19 +509,19 @@ int edit_playlist(int argc, char *argv[]) {
     /* move cursor to its start position */
     move(1,1);
 
-    while(!stop) {
+    while(stop == CONT) {
 
         int ch = getch();
 
         switch(ch) {
             case 'p': /* start playing! */
                 move(0, 0);
-                stop = 2;
+                stop = GOTO_PLAYER;
                 break;
 
             case 'q': /* quit program */
                 move(0, 0);
-                stop = 1;
+                stop = QUIT;
                 break;
 
             case KEY_UP: /* move up in window, scroll if needed */
@@ -587,19 +623,19 @@ int edit_playlist(int argc, char *argv[]) {
 
 int main(int argc, char *argv[]) {
 
-    int stop = 3;   /* stopping condition for the program */
+    int stop = GOTO_EDITOR;   /* stopping condition for the program */
 
     initscr(); /* ncurses init stuff */
     keypad(stdscr, TRUE);
     cbreak();
     noecho();
 
-    while(stop != 1) {
+    while(stop != QUIT) {
 
-        if (stop == 2)
+        if (stop == GOTO_PLAYER)
             stop = play_playlist(argc, argv);
 
-        else if (stop == 3)
+        else if (stop == GOTO_EDITOR)
             stop = edit_playlist(argc, argv);
 
 
