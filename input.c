@@ -102,12 +102,12 @@ char *getFilename(char *prompt) {
 
    delwin(win);
 
-   touchwin(dirwin);
-   touchwin(listwin);
+   touchwin(dirwin->win);
+   touchwin(listwin->win);
    if (helpwin != NULL) touchwin(helpwin);
    refresh();
-   wnoutrefresh(dirwin);
-   wnoutrefresh(listwin);
+   wnoutrefresh(dirwin->win);
+   wnoutrefresh(listwin->win);
    if (helpwin != NULL) wnoutrefresh(helpwin);
 
    doupdate();
@@ -156,21 +156,19 @@ int confirm(char *prompt, int def) {
    delwin(win);
 
    if (func == PLAYLIST) {
-      touchwin(dirwin);
-      touchwin(listwin);
+      touchwin(dirwin->win);
+      touchwin(listwin->win);
       if (helpwin != NULL) touchwin(helpwin);
       refresh();
-      wnoutrefresh(dirwin);
-      wnoutrefresh(listwin);
+      wnoutrefresh(dirwin->win);
+      wnoutrefresh(listwin->win);
       if (helpwin != NULL) wnoutrefresh(helpwin);
    } else if (func == PLAYER) {
       if (helpwin != NULL) touchwin(helpwin);
-      if (infowin != NULL) touchwin(infowin);
-      if (miniwin != NULL) touchwin(miniwin);
+      if (infowin->win != NULL) touchwin(infowin->win);
       refresh();
       if (helpwin != NULL) wnoutrefresh(helpwin);
-      if (infowin != NULL) wnoutrefresh(infowin);
-      if (miniwin != NULL) wnoutrefresh(miniwin);
+      if (infowin->win != NULL) wnoutrefresh(infowin->win);
    }
 
    doupdate();

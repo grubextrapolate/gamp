@@ -1,6 +1,8 @@
 #ifndef STRUCTS_H
 #define STRUCTS_H
 
+#include CURSES_LOC
+
 #define LOGO_MAX_X 100
 #define LOGO_MAX_Y 40
 
@@ -22,6 +24,41 @@ typedef struct ITEMLIST {
    ITEM *tail; /* tail of list */
    int num; /* number of items in list */
 } ITEMLIST;
+
+/*
+ * struct including curses window and info about what we're displaying
+ * in it.
+ */
+typedef struct LISTWIN {
+   WINDOW *win;
+   int height;
+   int width;
+   int xpos;
+   int ypos;
+   int pos;
+   ITEM *first;
+   ITEM *cur;
+   int active;
+   ITEMLIST *list;
+} LISTWIN;
+
+typedef struct VOLWIN {
+   WINDOW *win;
+   int height;
+   int width;
+   int xpos;
+   int ypos;
+   int left;
+   int right;
+} VOLWIN;
+
+typedef struct INFOWIN {
+   WINDOW *win;
+   int height;
+   int width;
+   int xpos;
+   int ypos;
+} INFOWIN;
 
 typedef struct PLAYERCONF {
 

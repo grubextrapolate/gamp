@@ -59,6 +59,8 @@ extern void finishPlayer();
 extern void initPlayer();
 extern int playPlaylist();
 extern void fillwin(WINDOW *, ITEM *, ITEMLIST *, int, ITEM *, ITEM *, int);
+extern void updateListWin(LISTWIN *);
+extern void updateVolWin();
 extern void finishEditor();
 extern void initEditor();
 extern int editPlaylist();
@@ -79,8 +81,6 @@ extern void showFilename(WINDOW *, ITEM *);
 extern void toggleHelpWin();
 extern void updateInfoWin();
 extern void toggleInfoWin();
-extern void updateMiniWin(ITEM *);
-extern void toggleMiniWin();
 extern void showLogo(WINDOW *, int, int);
 extern ITEM *getNextSong();
 extern ITEM *getPrevSong();
@@ -94,23 +94,13 @@ extern int exists(char *);
 extern void volUp();
 extern void volDown();
 
-/* playlist editor windows */
-extern WINDOW *dirwin; /* direcory list window */
-extern WINDOW *listwin; /* playlist window */
-
-/* player windows */
-extern WINDOW *titlewin; /* song time/title window */
-extern WINDOW *mainwin; /* main window */
-extern WINDOW *progwin; /* progress window */
-
-/* popup windows */
-extern WINDOW *infowin; /* popup info window */
+/* windows */
+extern LISTWIN *dirwin; /* direcory list window */
+extern LISTWIN *listwin; /* playlist window */
+extern INFOWIN *infowin; /* info window */
+extern WINDOW *progwin; /* progress/title/time window */
 extern WINDOW *helpwin; /* popup help window */
-extern WINDOW *miniwin; /* popup mini-list window */
-
-/* playlist and current directory list */
-extern ITEMLIST *playlist;
-extern ITEMLIST *dirlist;
+extern VOLWIN *volwin; /* volume window */
 
 /* player configuration */
 extern CONFIGURATION configuration;
