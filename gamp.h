@@ -34,6 +34,7 @@
 
 #define MAX_STRLEN 1024
 
+#define NONE 0
 #define QUIT 1
 #define PLAYLIST 2   
 #define PLAYER 3
@@ -79,6 +80,7 @@ extern void updatePlaying(ITEM *sng);
 extern void updateStopped();
 extern void showFilename(WINDOW *, ITEM *);
 extern void toggleHelpWin();
+extern void updateHelpWin();
 extern void updateInfoWin();
 extern void toggleInfoWin();
 extern void showLogo(WINDOW *, int, int);
@@ -93,14 +95,14 @@ extern int exists(char *);
 
 extern void volUp();
 extern void volDown();
-extern void getVolume(VOLWIN *);
+extern void initVolume(VOLWIN *);
 
 /* windows */
 extern LISTWIN *dirwin; /* direcory list window */
 extern LISTWIN *listwin; /* playlist window */
 extern INFOWIN *infowin; /* info window */
 extern INFOWIN *progwin; /* progress/title/time window */
-extern INFOWIN *helpwin; /* popup help window */
+extern HELPWIN *helpwin; /* popup help window */
 extern VOLWIN *volwin; /* volume window */
 
 /* player configuration */

@@ -61,6 +61,15 @@ typedef struct INFOWIN {
    int ypos;
 } INFOWIN;
 
+typedef struct HELPWIN {
+   WINDOW *win;
+   int height;
+   int width;
+   int xpos;
+   int ypos;
+   int active;
+} HELPWIN;
+
 typedef struct PLAYERCONF {
 
    int buffer;

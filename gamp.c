@@ -32,7 +32,7 @@ VOLWIN *volwin = NULL;
 INFOWIN *progwin = NULL; /* progress/time/song window */
 
 INFOWIN *infowin = NULL; /* info window */
-INFOWIN *helpwin = NULL; /* popup help window */
+HELPWIN *helpwin = NULL; /* popup help window */
 
 /*
  * list of directory tree traversal so <-- can act as 'back' button in
@@ -108,23 +108,19 @@ void initDirlist(char *pwd, ITEMLIST **list) {
  * initialization routine for the player. sets up the windows, displays
  * information if the track is already playing.
  */
-void initPlayer() {
+void updateProgWin() {
 
-   if (progwin->win == NULL) {
-      if (curState & playState)
-         showFilename(progwin->win, curSong);
+   wmove(progwin->win, 0, 0);
+   wclrtobot(progwin->win);
+   box(progwin->win, 0, 0);
+   if (curState & playState)
+      showFilename(progwin->win, curSong);
 
-      if (configuration.repeatMode == repeatOne)
-         mvwaddstr(progwin->win, 1, 1, "r");
-      else if (configuration.repeatMode == repeatAll)
-         mvwaddstr(progwin->win, 1, 1, "R");
+   if (configuration.repeatMode == repeatOne)
+      mvwaddstr(progwin->win, 1, 1, "r");
+   else if (configuration.repeatMode == repeatAll)
+      mvwaddstr(progwin->win, 1, 1, "R");
 
-   } else {
-      touchwin(progwin->win);
-   }
-
-   /* refresh screen */
-   refresh();
    wnoutrefresh(progwin->win);
    doupdate();
 
@@ -138,25 +134,16 @@ int playPlaylist() {
 
    int ch = ';';
 
-   initPlayer();
-
-   if (helpwin->win != NULL) {
-      toggleHelpWin();
-      toggleHelpWin();
-   }
-   if (infowin->win == NULL) {
-//      toggleInfoWin();
-   } else {
-//      touchwin(infowin->win);
-//      wnoutrefresh(infowin->win);
-//      touchwin(volwin->win);
-//      wnoutrefresh(volwin->win);
-   }
-
    /* refresh screen */
+   refresh();
    updateInfoWin();
    updateVolWin();
+//   updateProgWin();
    updateListWin(listwin);
+
+   if (helpwin->active)
+      updateHelpWin();
+
    doupdate();
 
    /* if we're in 'autoplay' mode via the '-p' command line switch */
@@ -279,31 +266,23 @@ int playPlaylist() {
             wresize(listwin->win, listwin->height, COLS);
 //            finishPlayer();
 //            initPlayer();
-            if (helpwin->win != NULL) {
-               toggleHelpWin();
-               toggleHelpWin();
-            }
-            if (infowin->win != NULL) {
-//               toggleInfoWin();
-//               toggleInfoWin();
-            }
+            if (helpwin->active)
+               updateHelpWin();
             break;
 
          default:
             break;
 
       }
+      if (helpwin->active) {
+         touchwin(helpwin->win);
+         wnoutrefresh(helpwin->win);
+      }
+      doupdate();
 
    }
 
-//   finishPlayer();
-
    return(func);
-}
-
-void initVolume() {
-
-   getVolume(volwin);
 }
 
 void volUp(CONFIGURATION *config) {
@@ -326,23 +305,23 @@ void volDown(CONFIGURATION *config) {
    }
 }
 
-void getVolume(VOLWIN *volwin) {
+void initVolume(VOLWIN *volwin) {
 
-   char buf[MAX_STRLEN];
-   int mrec[3];
+//   char buf[MAX_STRLEN];
+//   int mrec[3];
 // volwin->vol = system("aumix -w q | awk '{print $2}' | awk -F ',' '{print $1}'";
 
    volwin->vol = 50;
 
-   if ((fork_pid = fork()) == 0) {
-      dup2(mrec[0], STDOUT_FILENO);
-      close(mrec[0]);
-      close(mrec[1]);
-      system("aumix -w q | awk '{print $2}' | awk -F ',' '{print $1}'");
+//   if ((fork_pid = fork()) == 0) {
+//      dup2(mrec[0], STDOUT_FILENO);
+//      close(mrec[0]);
+//      close(mrec[1]);
+//      system("aumix -w q | awk '{print $2}' | awk -F ',' '{print $1}'");
 
-      read(mrec[0], buf, sizeof(buf));
-      debug("getVolume: buf=\"%s\"\n", buf);
-   }
+//      read(mrec[0], buf, sizeof(buf));
+//      debug("initVolume: buf=\"%s\"\n", buf);
+//   }
 }
 
 void updateVolWin() {
@@ -426,48 +405,12 @@ void updateListWin(LISTWIN *win) {
          fillwin(win->win, win->first, win->list, win->win->_maxy - 2,
                  curSong, NULL, TRUE);
       }
+      if (helpwin->active) {
+         touchwin(helpwin->win);
+         wnoutrefresh(helpwin->win);
+      }
+      doupdate();
    }
-}
-
-/*
- * listwin->list editor cleanup routine. destroys windows and sets pointers to
- * NULL.
- */
-void finishEditor() {
-
-/*   if (dirwin->win != NULL) {
-      delwin(dirwin->win);
-      dirwin->win = NULL;
-   }
-   if (listwin->win != NULL) {
-      delwin(listwin->win);
-      listwin->win = NULL;
-   }*/
-}
-
-/*
- * initialization routine for the editor. sets up the windows, displays
- * information if the track is already playing, shows the help menu at the
- * bottom.
- */
-void initEditor() {
-
-   /* create windows */
-   if (dirwin->win == NULL) {
-   } else {
-      touchwin(dirwin->win);
-   }
-
-   if (listwin->win == NULL) {
-   } else {
-      touchwin(listwin->win);
-   }
-
-   /* refresh screen */
-   wnoutrefresh(dirwin->win);
-   wnoutrefresh(listwin->win);
-   doupdate();
-
 }
 
 /*
@@ -483,8 +426,6 @@ int editPlaylist() {
    ITEM *itm = NULL; /* loop pointer */
    char *filename = NULL; /* load/save filename */
    char *cptr = NULL;
-
-   initEditor();
 
    if (dirwin->list == NULL) {
       initDirlist("", &dirwin->list);
@@ -508,12 +449,15 @@ int editPlaylist() {
    }
 
    /* draw boxes in windows and fill them with something */
+   refresh();
+//   updateProgWin();
    updateListWin(dirwin);
    updateListWin(listwin);
-   if (helpwin->win != NULL) {
-      toggleHelpWin();
-      toggleHelpWin();
-   }
+
+   if (helpwin->active)
+      updateHelpWin();
+
+   doupdate();
 
    while (func == PLAYLIST) {
 
@@ -1046,10 +990,8 @@ int editPlaylist() {
          case 12: /* ctrl-l (refresh) */
             updateListWin(dirwin);
             updateListWin(listwin);
-            if (helpwin->win != NULL) {
-               toggleHelpWin();
-               toggleHelpWin();
-            }
+            if (helpwin->active)
+               updateHelpWin();
             break;
 
          default:
@@ -1057,15 +999,13 @@ int editPlaylist() {
       }
       wnoutrefresh(dirwin->win);
       wnoutrefresh(listwin->win);
-      if (helpwin->win != NULL) {
+      if (helpwin->active) {
          touchwin(helpwin->win);
          wnoutrefresh(helpwin->win);
       }
       doupdate();
 
    }
-
-//   finishEditor();
 
    return(func);
 
@@ -1421,86 +1361,92 @@ void showFilename(WINDOW *win, ITEM *itm) {
  * toggles the display of the help window
  */
 void toggleHelpWin() {
-   int x_offset = 0, y_offset = 0;
-   int helpWidth = 50, helpHeight = 12;
-   char buf[MAX_STRLEN];
 
-   if (helpwin->win == NULL) { /* no help showing currently, so display it */
+   if (!helpwin->active) { /* no help showing currently, so display it */
 
-      x_offset = (COLS - helpWidth) / 2;
-      y_offset = (LINES - helpHeight) / 2;
-
-      if (x_offset < 0) x_offset = 0;
-      if (y_offset < 0) y_offset = 0;
-
-      helpwin->win = newwin(helpHeight, helpWidth, y_offset, x_offset);
-      if (helpwin->win == NULL) die("toggleHelp: newwin failure\n");
-      box(helpwin->win, 0, 0);
-
-      if (func == PLAYER) {
-
-         strcpy(buf, "p: play                 s: stop");
-         mvwaddstr(helpwin->win, 2, 3, buf);
-         strcpy(buf, "f: start/end ffwd       r: start/end rew");
-         mvwaddstr(helpwin->win, 3, 3, buf);
-         strcpy(buf, "n: next                 v: prev");
-         mvwaddstr(helpwin->win, 4, 3, buf);
-         strcpy(buf, "a: pause                q: quit");
-         mvwaddstr(helpwin->win, 5, 3, buf);
-         strcpy(buf, "l: goto playlist        h: toggle help");
-         mvwaddstr(helpwin->win, 7, 3, buf);
-         strcpy(buf, "m: toggle mini-list     t: toggle time");
-         mvwaddstr(helpwin->win, 8, 3, buf);
-         strcpy(buf, "i: toggle info          R: cycle repeat mode");
-         mvwaddstr(helpwin->win, 9, 3, buf);
-
-      } else { /* PLAYLIST */
-
-         strcpy(buf, "a: add all files        A: add recursively");
-         mvwaddstr(helpwin->win, 1, 3, buf);
-         strcpy(buf, "left: remove/cd ..      right: add/chdir/play");
-         mvwaddstr(helpwin->win, 2, 3, buf);
-         strcpy(buf, "space: page down        -: page up");
-         mvwaddstr(helpwin->win, 3, 3, buf);
-         strcpy(buf, "down: move down         up: move up");
-         mvwaddstr(helpwin->win, 4, 3, buf);
-         strcpy(buf, "u: move song up         d: move song down");
-         mvwaddstr(helpwin->win, 5, 3, buf);
-         strcpy(buf, "r: randomize list       o: sort list");
-         mvwaddstr(helpwin->win, 6, 3, buf);
-         strcpy(buf, "l: load playlist        s: save playlist");
-         mvwaddstr(helpwin->win, 7, 3, buf);
-         strcpy(buf, "c: clear playlist       h: toggle this help");
-         mvwaddstr(helpwin->win, 8, 3, buf);
-         strcpy(buf, "q: quit                 p: goto player");
-         mvwaddstr(helpwin->win, 9, 3, buf);
-         strcpy(buf, "tab: switch windows");
-         mvwaddstr(helpwin->win, 10, 3, buf);
-
-      }
-      wnoutrefresh(helpwin->win);
+      helpwin->active = TRUE;
+      updateHelpWin();
 
    } else { /* help being displayed, so destroy it */
 
+      helpwin->active = FALSE;
+
       if (func == PLAYER) {
-         delwin(helpwin->win);
-         helpwin->win = NULL;
          refresh();
-         if (infowin->win != NULL) {
-            touchwin(infowin->win);
-            wnoutrefresh(infowin->win);
-         }
+         touchwin(infowin->win);
+         touchwin(progwin->win);
+         touchwin(volwin->win);
+         touchwin(listwin->win);
+         wnoutrefresh(infowin->win);
+         wnoutrefresh(progwin->win);
+         wnoutrefresh(listwin->win);
+         wnoutrefresh(volwin->win);
       } else { /* PLAYLIST */
-         delwin(helpwin->win);
+         refresh();
          touchwin(dirwin->win);
          touchwin(listwin->win);
-         helpwin->win = NULL;
-         refresh();
+         touchwin(progwin->win);
          wnoutrefresh(dirwin->win);
          wnoutrefresh(listwin->win);
+         wnoutrefresh(progwin->win);
       }
+      doupdate();
 
    }
+}
+
+/*
+ * updates the display of the help window
+ */
+void updateHelpWin() {
+   char buf[MAX_STRLEN];
+
+   wmove(helpwin->win, 0, 0);
+   wclrtobot(helpwin->win);
+   box(helpwin->win, 0, 0);
+
+   if (func == PLAYER) {
+
+      strcpy(buf, "p: play                 s: stop");
+      mvwaddstr(helpwin->win, 2, 3, buf);
+      strcpy(buf, "f: start/end ffwd       r: start/end rew");
+      mvwaddstr(helpwin->win, 3, 3, buf);
+      strcpy(buf, "n: next                 v: prev");
+      mvwaddstr(helpwin->win, 4, 3, buf);
+      strcpy(buf, "a: pause                q: quit");
+      mvwaddstr(helpwin->win, 5, 3, buf);
+      strcpy(buf, "l: goto playlist        h: toggle help");
+      mvwaddstr(helpwin->win, 7, 3, buf);
+      strcpy(buf, "m: toggle mini-list     t: toggle time");
+      mvwaddstr(helpwin->win, 8, 3, buf);
+      strcpy(buf, "i: toggle info          R: cycle repeat mode");
+      mvwaddstr(helpwin->win, 9, 3, buf);
+
+   } else { /* PLAYLIST */
+
+      strcpy(buf, "a: add all files        A: add recursively");
+      mvwaddstr(helpwin->win, 1, 3, buf);
+      strcpy(buf, "left: remove/cd ..      right: add/chdir/play");
+      mvwaddstr(helpwin->win, 2, 3, buf);
+      strcpy(buf, "space: page down        -: page up");
+      mvwaddstr(helpwin->win, 3, 3, buf);
+      strcpy(buf, "down: move down         up: move up");
+      mvwaddstr(helpwin->win, 4, 3, buf);
+      strcpy(buf, "u: move song up         d: move song down");
+      mvwaddstr(helpwin->win, 5, 3, buf);
+      strcpy(buf, "r: randomize list       o: sort list");
+      mvwaddstr(helpwin->win, 6, 3, buf);
+      strcpy(buf, "l: load playlist        s: save playlist");
+      mvwaddstr(helpwin->win, 7, 3, buf);
+      strcpy(buf, "c: clear playlist       h: toggle this help");
+      mvwaddstr(helpwin->win, 8, 3, buf);
+      strcpy(buf, "q: quit                 p: goto player");
+      mvwaddstr(helpwin->win, 9, 3, buf);
+      strcpy(buf, "tab: switch windows");
+      mvwaddstr(helpwin->win, 10, 3, buf);
+
+   }
+   wnoutrefresh(helpwin->win);
 
    doupdate();
 }
@@ -1607,48 +1553,6 @@ void updateInfoWin() {
       }
       wnoutrefresh(infowin->win);
       doupdate();
-   }
-}
-
-/*
- * toggles the track info window open/closed.
- */
-void toggleInfoWin() {
-   int x_offset = 0, y_offset = 0;
-   int infoWidth = 0, infoHeight = 11;
-
-   if (func == PLAYER) {
-
-      if (infowin->win == NULL) { /* no info showing currently, so display it */
-
-         infoWidth = COLS - 4;
-         y_offset = 4;
-         x_offset = 4;
-
-         volwin->win = newwin(infoHeight, 4, y_offset, 0);
-         if (volwin->win == NULL) die("toggleInfoWin: newwin failure\n");
-         box(volwin->win, 0, 0);
-         initVolume();
-         wnoutrefresh(volwin->win);
-
-         infowin->win = newwin(infoHeight, infoWidth, y_offset, x_offset);
-         if (infowin->win == NULL) die("toggleInfoWin: newwin failure\n");
-         updateInfoWin();
-
-      } else { /* info being displayed, so destroy it */
-
-         delwin(infowin->win);
-         infowin->win = NULL;
-
-         refresh();
-         if (helpwin->win != NULL) {
-            touchwin(helpwin->win);
-            wnoutrefresh(helpwin->win);
-         }
-      }
-
-      doupdate();
-
    }
 }
 
@@ -1844,6 +1748,10 @@ void processArgs(int argc, char **argv, CONFIGURATION *config) {
          displayUsage();
          exit(0);
 
+      } else if ((strcmp(argv[i], "-e") == 0) ||
+                 (strcmp(argv[i], "--edit") == 0)) {
+         func = PLAYLIST;
+
       } else if ((strcmp(argv[i], "-p") == 0) ||
                  (strcmp(argv[i], "--play") == 0)) {
          func = GOPLAY;
@@ -1919,7 +1827,7 @@ void gampInit() {
    volwin->vol = -1;
    volwin->max = 100;
    volwin->incr = 5;
-   getVolume(volwin);
+   initVolume(volwin);
    volwin->win = newwin(volwin->height, volwin->width, volwin->ypos, volwin->xpos);
    if (volwin->win == NULL) die("gampInit: newwin failure\n");
    box(volwin->win, 0, 0);
@@ -1962,17 +1870,19 @@ void gampInit() {
    if (listwin->win == NULL) die("gampInit: newwin failure\n");
    box(listwin->win, 0, 0);
 
-   helpwin = (INFOWIN *)malloc(sizeof(INFOWIN));
+   helpwin = (HELPWIN *)malloc(sizeof(HELPWIN));
    if (helpwin == NULL) die("gampInit: malloc error\n");
    helpwin->height = 12;
    helpwin->width = 50;
+   helpwin->active = FALSE;
    helpwin->ypos = (LINES - helpwin->height) / 2;
    if (helpwin->ypos < 0) helpwin->ypos = 0;
    helpwin->xpos = (COLS - helpwin->width) / 2;
    if (helpwin->xpos < 0) helpwin->xpos = 0;
-   helpwin->win = NULL;
+   helpwin->win = newwin(helpwin->height, helpwin->width, helpwin->ypos, helpwin->xpos);
+   if (helpwin->win == NULL) die("gampInit: newwin failure\n");
+   box(helpwin->win, 0, 0);
 
-//   toggleInfoWin();
 }
 
 void gampFinish() {
@@ -2010,6 +1920,8 @@ int main(int argc, char **argv) {
 
    pthread_t msg_thread; /* the msg watcher thread */
 
+   func = NONE;
+
    initPrefs(&configuration); /* initialize preferences */
    processArgs(argc, argv, &configuration); /* process the command line */
    readPrefs(NULL, &configuration); /* read prefs */
@@ -2022,7 +1934,7 @@ int main(int argc, char **argv) {
     * but get changed to GOPLAY if "-p" or "--play" were given on the
     * command line.
     */
-   if (func != GOPLAY)
+   if (func == NONE)
       func = configuration.startWith;
 
    if (sdir != NULL)
@@ -2036,6 +1948,7 @@ int main(int argc, char **argv) {
    forkIt(); /* fork the player */
 
    initscr(); /* ncurses init stuff */
+   savetty();
    curs_set(0); /* invisible cursor */
    cbreak();
    noecho();
@@ -2081,6 +1994,7 @@ int main(int argc, char **argv) {
 void cleanup() {
    curs_set(1); /* set cursor visible */
    signal(SIGINT, SIG_DFL);
+   resetty();
    endwin();
    playerKill();
 }
