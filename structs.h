@@ -57,6 +57,8 @@ typedef struct CONFIGURATION {
    int ignoreCase; /* ignore filename case when sorting */
    int repeatMode; /* repeat none, one, all */
    int stepTimeout; /* delay (in milliseconds) between ffwd/rew steps */
+   char *volup;
+   char *voldown;
 
 } CONFIGURATION;
 

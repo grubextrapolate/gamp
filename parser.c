@@ -147,6 +147,24 @@ int readPrefs(char *filename, CONFIGURATION *config) {
                else if (strcmp(ptr + 11, "repeatAll") == 0)
                   config->repeatMode = repeatAll;
 
+            } else if (strncmp(ptr, "volUpCmd=", 9) == 0) {
+               if (*(ptr+9) != '\0') {
+                  config->volup = strdup(ptr + 9);
+               } else {
+                  if (config->volup != NULL)
+                     free(config->volup);
+                  config->volup = NULL;
+               }
+
+            } else if (strncmp(ptr, "volDownCmd=", 11) == 0) {
+               if (*(ptr+9) != '\0') {
+                  config->voldown = strdup(ptr + 11);
+               } else {
+                  if (config->voldown != NULL)
+                     free(config->voldown);
+                  config->voldown = NULL;
+               }
+
             } else if (strncmp(ptr, "logoFile=", 9) == 0) {
                if (*(ptr+9) != '\0') {
                   config->logoFile = strdup(ptr + 9);
@@ -293,6 +311,22 @@ int writePrefs(char *filename, CONFIGURATION *config) {
          else
             fprintf(outfile, "\n");
 
+         fprintf(outfile, "# command to execute to increase volume\n");
+         fprintf(outfile, "volUpCmd=");
+         if ((config->volup != NULL) &&
+             (config->volup[0] != '\0'))
+            fprintf(outfile, "%s\n", config->volup);
+         else
+            fprintf(outfile, "\n");
+
+         fprintf(outfile, "# command to execute to decrease volume\n");
+         fprintf(outfile, "volDownCmd=");
+         if ((config->voldown != NULL) &&
+             (config->voldown[0] != '\0'))
+            fprintf(outfile, "%s\n", config->voldown);
+         else
+            fprintf(outfile, "\n");
+
          fprintf(outfile, "# delay (in milliseconds) between ffwd/rew steps\n");
          fprintf(outfile, "stepTimeout=%d\n", config->stepTimeout);
 
@@ -327,6 +361,8 @@ int dumpPrefs(CONFIGURATION *config) {
    debug("dumpPrefs: logoHeight=%d\n", config->logoHeight);
    debug("dumpPrefs: logoWidth=%d\n", config->logoWidth);
    debug("dumpPrefs: logoFile=\"%s\"\n", config->logoFile);
+   debug("dumpPrefs: volup=\"%s\"\n", config->volup);
+   debug("dumpPrefs: voldown=\"%s\"\n", config->voldown);
    debug("dumpPrefs: stepTimeout=%d\n", config->stepTimeout);
 
    return(0);
@@ -366,6 +402,9 @@ void initPrefs(CONFIGURATION *config) {
    config->logoHeight = 0;
    config->logoWidth = 0;
    config->logoFile = NULL;
+
+   config->volup = strdup("aumix -w +10");
+   config->voldown = strdup("aumix -w -10");
 
    config->configFile = NULL;
 

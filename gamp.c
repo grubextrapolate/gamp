@@ -267,9 +267,13 @@ int playPlaylist() {
             break;
 
          case '+': /* increase volume (disabled) */
+         case '=':
+            volUp(&configuration);
             break;
 
          case '-': /* decrease volume (disabled) */
+         case '_':
+            volDown(&configuration);
             break;
 
          case 'd': /* toggle visuals on/off (disabled) */
@@ -337,6 +341,20 @@ int playPlaylist() {
    finishPlayer();
 
    return(func);
+}
+
+void volUp(CONFIGURATION *config) {
+
+   if ((config->volup != NULL) && (config->volup[0] != '\0')) {
+      system(config->volup);
+   }
+}
+
+void volDown(CONFIGURATION *config) {
+
+   if ((config->voldown != NULL) && (config->voldown[0] != '\0')) {
+      system(config->voldown);
+   }
 }
 
 /*
@@ -1966,7 +1984,7 @@ void newSetup(CONFIGURATION *config) {
          }
       }
    } else {
-      die("newSetup: HOME undefined? somethings wrong...\n");
+      die("newSetup: HOME undefined? something's wrong...\n");
    }
 }
 

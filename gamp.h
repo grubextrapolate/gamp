@@ -91,6 +91,9 @@ extern void displayVersion();
 extern void cleanup();
 extern int exists(char *);
 
+extern void volUp();
+extern void volDown();
+
 /* playlist editor windows */
 extern WINDOW *dirwin; /* direcory list window */
 extern WINDOW *listwin; /* playlist window */
