@@ -165,7 +165,7 @@ int closeAndEnd() {
     last_loop = FALSE;
     first_loop = TRUE;
 
-    if (current == playlist.cur) {
+    if (current >= playlist.cur) {
         current = -1;
         wclear(mainwin);
         box(mainwin, 0, 0);
@@ -414,18 +414,10 @@ void init_dirlist(char *pwd) {
     struct stat dstat;
     char blank[5]="";
 
-    if (pwd[0] == '/') {       /* if we have an absolute path */
-        strcpy(cwd, pwd);
-        chdir(cwd);
+    if (pwd[0] == '\0') {
         getcwd(cwd, sizeof(cwd));
-    }
-    else {
-        if (cwd[0] == '\0')
-           getcwd(cwd, sizeof(cwd));
-
-        strcat(cwd, "/");
-        strcat(cwd, pwd);
-        chdir(cwd);
+    } else {
+        chdir(pwd);
         getcwd(cwd, sizeof(cwd));
     }
 
@@ -544,7 +536,6 @@ void init_player() {
 
     delwin(titlewin);
     delwin(mainwin);
-    delwin(helpwin);
 
     /* create windows */
     titlewin = newwin(3, 0, 0, 0);
@@ -599,7 +590,10 @@ int play_playlist(int argc, char *argv[]) {
         ch = wgetch(titlewin);
         switch(ch) {
             case 'q': /* quit program */
-                closeAndEnd();
+                pthread_mutex_lock(&mut);
+                play = STOP;
+                pthread_cond_signal(&cond);
+                pthread_mutex_unlock(&mut);
                 stop = QUIT;
                 break;
 
@@ -767,7 +761,8 @@ int edit_playlist(int argc, char *argv[]) {
             playwin_width, playwin_height);
     box(helpwin, 0, 0);
 
-    strcpy(tmpstr, " Quit Clear All (tab)switch (left)remove (right)add/browse Player");
+    strcpy(tmpstr, " Quit Clear All (tab)switch (left)remove ");
+    strcat(tmpstr, "(right)add/browse Player Random");
     mvwaddstr(helpwin, 1, 1, tmpstr);
 
     /* refresh screen */
@@ -935,7 +930,7 @@ int edit_playlist(int argc, char *argv[]) {
                 break;
 
             case 'r': /* r to randomize the playlist */
-                randomize_list(&playlist);
+                randomize_list(&playlist, &current);
                 playwin_first = 0;
                 fillwin(playwin,&playlist,playwin_first,
                         playwin_width, playwin_height);

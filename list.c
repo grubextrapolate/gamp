@@ -84,9 +84,10 @@ void sort_list(STRLIST *list) {
     }
 }
 
-void randomize_list(STRLIST *list) {
+void randomize_list(STRLIST *list, int *current) {
 
     int i, num_items, j;
+    int newcur;
 
     char **tmpfiles = (char **)malloc(sizeof(char *) * list->max);
     char **tmpdirs = (char **)malloc(sizeof(char *) * list->max);
@@ -94,6 +95,7 @@ void randomize_list(STRLIST *list) {
 
     num_items = list->cur;
     i = 0;
+    newcur = *current;
 
     for (i = 0; list->cur > 0; i++) {
 
@@ -104,6 +106,14 @@ void randomize_list(STRLIST *list) {
         tmpdirs[i] = strdup(list->dirs[j]);    /* temp list.          */
         tmpnames[i] = strdup(list->names[j]);
         delete(list, j);
+
+        if (j == newcur) {
+            *current = i; /* the current position of the newlist is
+                             playing */
+            newcur = -1; /* dont want to adjust newcur anymore */
+        } else if (j < newcur) {
+            newcur--; /* if we're removing a previous, decrement newcur */
+        }
 
     }
 

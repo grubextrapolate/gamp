@@ -22,7 +22,7 @@ extern void swap(STRLIST *, int, int);
 extern int isdir(STRLIST *, int);
 extern int isfile(STRLIST *, int);
 extern void sort_list(STRLIST *);
-extern void randomize_list(STRLIST *);
+extern void randomize_list(STRLIST *, int *);
 extern void free_list(STRLIST *);
 extern void init_list(STRLIST *, int);
 
