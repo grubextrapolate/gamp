@@ -235,7 +235,7 @@ audioBufferOpen(int frequency, int stereo, int volume)
 		
 		if (outFdPtr && FD_ISSET(outFd,outFdPtr)) {							/* need to write */
 			percentFull=100*bufferSize(&audioBuffer)/AUDIO_BUFFER_SIZE;
-			if ((cntr++ % (16/(AUSIZ/4096)))==0) msg("\rBuffer (%2d%%) %6d",percentFull,bufferSize(&audioBuffer));
+			cntr++;
 			bufferGet(&audioBuffer,miniBuffer,AUSIZ);
 			cnt=audioWrite(miniBuffer,AUSIZ);
 			DB(buffer2, msg("buffer: wrote %d bytes (to audio)\n",cnt) );
