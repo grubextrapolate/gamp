@@ -971,11 +971,21 @@ int editPlaylist() {
 
          case 'i': /* insert after current */
             if (dirwin->active) {
+              if ((dirwin->cur != NULL) && isfile(dirwin->cur)) {
+                 itm = copyItem(dirwin->cur);
+                 insertAfterItem(itm, listwin->cur, &(listwin->list));
+                 updateListWin(listwin);
+               }
             }
             break;
 
          case 'I': /* insert marked after current */
             if (dirwin->active) {
+              if ((dirwin->cur != NULL) && isfile(dirwin->cur)) {
+                 insertMarkedAfterItem(dirwin->list, listwin->cur,
+                                       &(listwin->list));
+                 updateListWin(listwin);
+               }
             }
             break;
 

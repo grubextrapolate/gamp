@@ -536,6 +536,7 @@ void playerStop() {
    send_msg(&msg);
 
    curState = stopState;
+   updateProgWin();
 }
 
 /*

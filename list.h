@@ -39,5 +39,7 @@ extern void replaceItem(ITEM *, ITEMLIST **, ITEM *);
 extern void addMarked(ITEMLIST *, ITEMLIST **);
 extern void addMarkedRecursive(ITEMLIST *, ITEMLIST **);
 extern ITEM *seekBackItem(ITEM *, int *);
+extern void insertAfterItem(ITEM *, ITEM *, ITEMLIST **);
+extern void insertMarkedAfterItem(ITEMLIST *, ITEM *, ITEMLIST **);
 
 #endif /* LIST_H */

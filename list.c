@@ -108,41 +108,7 @@ void addItem(ITEM *item, ITEMLIST **list) {
       (*list)->tail = item;
       (*list)->num++;
    }
-}
-
-/*
- * adds items to the list in an ordered manner. resulting list will have
- * directories first (alphabetical) followed by files (alphabetical).
- */
-void addOrdered(ITEM *item, ITEMLIST **list) {
-
-   ITEM *cur = NULL;
-
-   if (*list == NULL) initList(list);
-
-   if ((*list)->head == NULL) { /* no items on list yet */
-      (*list)->head = item;
-      (*list)->tail = item;
-      (*list)->num++;
-   } else { /* at least one item on list */
-
-      cur = (*list)->head;
-      while ((cur != NULL) && (cur->name < item->name))
-         cur = cur->next;
-
-      if (cur == NULL) { /* adding to end of list */
-         item->prev = (*list)->tail;
-         (*list)->tail->next = item;
-         (*list)->tail = item;
-
-      } else { /* add before current item */
-         item->next = cur;
-         item->prev = cur->prev;
-         cur->prev->next = item;
-         cur->prev = item;
-      }
-      (*list)->num++;
-   }
+   if (item->marked) item->marked = FALSE;
 }
 
 /*
@@ -807,3 +773,61 @@ ITEM *seekBackItem(ITEM *cur, int *pos) {
    }
    return(ret);
 }
+
+/*
+ * adds items to the list after the specified item.
+ */
+void insertAfterItem(ITEM *item, ITEM *aft, ITEMLIST **list) {
+
+   if (*list == NULL) initList(list);
+
+   if (aft == NULL) { /* insert at end */
+      addItem(item, list);
+   } else { /* at least one item on list */
+
+      if ((*list)->tail == aft) (*list)->tail = item;
+
+      if (aft->next != NULL) aft->next->prev = item;
+
+      item->prev = aft;
+      item->next = aft->next;
+      aft->next = item;
+      (*list)->num++;
+
+      if (item->marked) item->marked = FALSE;
+   }
+}
+
+
+/*
+ * adds marked items to the list after the specified item.
+ */
+void insertMarkedAfterItem(ITEMLIST *src, ITEM *aft, ITEMLIST **list) {
+
+   ITEM *cur = NULL;
+   ITEM *ptr = NULL;
+   ITEM *ptr2 = NULL;
+
+   if (*list == NULL) initList(list);
+
+   if (aft == NULL) { /* insert at end */
+      addMarked(src, list);
+   } else { /* at least one item on list */
+
+      if (src != NULL) {
+         cur = src->head;
+         ptr2 = aft;
+         while (cur != NULL) {
+            if ((isfile(cur)) && (cur->marked)) {
+               ptr = copyItem(cur);
+               ptr->marked = FALSE;
+               insertAfterItem(ptr, ptr2, list);
+               ptr2 = ptr;
+            }
+            cur = cur->next;
+         }
+      }
+   }
+}
+
+
