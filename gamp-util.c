@@ -255,7 +255,7 @@ char *strpad(ITEM *itm, int len) {
 
 /*
  * trims trailing ' ', '\n', or '\t' from the end of a string by replacing
- * these characters by '\0'. used to trim id3 tags and gamp logo.
+ * these characters by '\0'. used to trim id3 tags.
  */
 void strtrim(char *str, int len) {
 

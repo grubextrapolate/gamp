@@ -73,7 +73,6 @@ from command line:
 
 usage: gamp [options] [mp3/m3u file(s)]
 options: -c, --config filename  load/save config file
-         -l, --logo filename    load this ascii logo
          -d, --dir dirname      start in dirname
          -h, --help             display this help info
          -v, --version          display version
@@ -93,8 +92,7 @@ some examples of this could be:
         gamp --setup
 	gamp -c sample.config.amp
 	gamp -config sample.config.sajber /mp3/all.m3u
-	gamp -l logos/gamp.logo2 -c /dev/null mp3/*
-	gamp --logo logos/gamp.logo
+	gamp -c /dev/null mp3/*
 	gamp -v
 	gamp --version
 	gamp -h

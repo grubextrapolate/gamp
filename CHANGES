@@ -9,6 +9,11 @@ CHANGES:
    -slightly improved layout in playlist editor
    -improved list position in windows after various operations to keep
     the current song and its position constant whenever possible
+   -new layout for player, improved layout for editor
+   -removed gamp logo
+   -improved help and docs
+   -added titles for windows. can be turned off with EXPERT
+    configuration option
 
    v1.0.2:
    -patch to have gamp show current song name in the title bar of an

@@ -42,7 +42,7 @@ endif
 # you should probably leave these untouched ####################################
 #
 
-OBJ = util.o list.o forkplayer.o gamp.o gamp-util.o parser.o logo.o input.o
+OBJ = util.o list.o forkplayer.o gamp.o gamp-util.o parser.o input.o
 LIBS = @LIBS@
 
 all: gamp

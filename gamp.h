@@ -9,7 +9,6 @@
 #include "list.h"
 #include "gamp-util.h"
 #include "parser.h"
-#include "logo.h"
 #include "input.h"
 #include <math.h>
 
@@ -60,7 +59,7 @@ extern void initDirlist(char *, ITEMLIST **);
 extern void finishPlayer();
 extern void initPlayer();
 extern int playPlaylist();
-extern void fillwin(WINDOW *, ITEM *, ITEMLIST *, int, ITEM *, ITEM *, int);
+extern void fillwin(LISTWIN *, ITEM *, int, ITEM *, ITEM *, int);
 extern void updateListWin(LISTWIN *);
 extern void updateVolWin();
 extern void finishEditor();
@@ -83,7 +82,6 @@ extern void updateProgWin();
 extern void updateHelpWin();
 extern void updateInfoWin();
 extern void toggleInfoWin();
-extern void showLogo(WINDOW *, int, int);
 extern ITEM *getNextSong();
 extern ITEM *getPrevSong();
 extern void newSetup(CONFIGURATION *);

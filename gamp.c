@@ -117,6 +117,10 @@ void updateProgWin() {
       wclrtobot(progwin->win);
       box(progwin->win, 0, 0);
 
+      if (! configuration.expert) {
+         mvwaddstr(progwin->win, 0, 2, progwin->wname);
+      }
+
       if (configuration.repeatMode == repeatOne)
          mvwaddstr(progwin->win, 1, 1, "r");
       else if (configuration.repeatMode == repeatAll)
@@ -375,6 +379,10 @@ void updateVolWin() {
       wclrtobot(volwin->win);
       box(volwin->win, 0, 0);
 
+      if (! configuration.expert) {
+         mvwaddstr(volwin->win, 0, 2, volwin->wname);
+      }
+
       if (height > 0) {
          for (i = 0; i < height; i++)
             mvwaddstr(volwin->win, maxy - i, 1, tmpstr);
@@ -390,7 +398,7 @@ void updateVolWin() {
  * is 'active'. will put a ">" at the left hand end of the song
  * indicated by play.
  */
-void fillwin(WINDOW *win, ITEM *first, ITEMLIST *list, int num, 
+void fillwin(LISTWIN *lw, ITEM *first, int num, 
              ITEM *sel, ITEM *play, int active) {
 
    ITEM *cur = NULL;
@@ -402,32 +410,35 @@ void fillwin(WINDOW *win, ITEM *first, ITEMLIST *list, int num,
    int n = 0;
    int off = 0;
 
-   wmove(win, 0, 0);
-   wclrtobot(win);
-   box(win, 0, 0);
+   wmove(lw->win, 0, 0);
+   wclrtobot(lw->win);
+   box(lw->win, 0, 0);
+   if (! configuration.expert) {
+      mvwaddstr(lw->win, 0, 2, lw->wname);
+   }
    cur = first;
-   if ((list != NULL) && (list->num != 0)) {
+   if ((lw->list != NULL) && (lw->list->num != 0)) {
       while ((i <= num) && (cur != NULL)) {
 
          if (cur == sel) {
-            mvwaddstr(win, i+1, 1, "-");
-            if (active) wattrset(win, A_REVERSE);
+            mvwaddstr(lw->win, i+1, 1, "-");
+            if (active) wattrset(lw->win, A_REVERSE);
          }
-         if (cur->marked) mvwaddstr(win, i+1, 1, "*");
-         if (cur == play) mvwaddstr(win, i+1, 1, ">");
-         tmpstr = strpad(cur, win->_maxx - 4);
-         mvwaddstr(win, i+1, 2, tmpstr);
+         if (cur->marked) mvwaddstr(lw->win, i+1, 1, "*");
+         if (cur == play) mvwaddstr(lw->win, i+1, 1, ">");
+         tmpstr = strpad(cur, lw->win->_maxx - 4);
+         mvwaddstr(lw->win, i+1, 2, tmpstr);
          free(tmpstr);
          if (cur == sel) {
-            if (active) wattrset(win, A_NORMAL);
-            mvwaddstr(win, i+1, win->_maxx - 2, "-");
+            if (active) wattrset(lw->win, A_NORMAL);
+            mvwaddstr(lw->win, i+1, lw->win->_maxx - 2, "-");
          }
          cur = cur->next;
          i++;
       }
 
 
-      frac = (double)num/list->num;
+      frac = (double)num/lw->list->num;
       if (frac > 1) frac = 1;
       h = (int)(frac * (double)num + 0.5);
       if (h < 1) h = 1;
@@ -438,30 +449,30 @@ void fillwin(WINDOW *win, ITEM *first, ITEMLIST *list, int num,
          n = n + 1;
          cur = cur->prev;
       }
-      fraca = (double)n/list->num;
+      fraca = (double)n/lw->list->num;
       if (fraca > 1) fraca = 1;
-//      off = (int) (((double)n / (list->num - num)) * num);
+//      off = (int) (((double)n / (lw->list->num - num)) * num);
       off = (int)(fraca * (double)num + 0.5);
-      if (list->num <= num) off = 0;
+      if (lw->list->num <= num) off = 0;
       if (off >= num) off = num;
-//((double)n / (list->num - num)) * num);
+//((double)n / (lw->list->num - num)) * num);
 
-      debug("num=%d, list->num=%d, frac=%f, h=%d, n=%d, off=%d\n",
-num, list->num, frac, h, n, off);
+      debug("num=%d, lw->list->num=%d, frac=%f, h=%d, n=%d, off=%d\n",
+num, lw->list->num, frac, h, n, off);
 
       for (i = 0; i <= num; i++) {
-         wattrset(win, A_REVERSE);
+         wattrset(lw->win, A_REVERSE);
          if (i < off)
-            mvwaddstr(win, i+1, win->_maxx - 1, " ");
+            mvwaddstr(lw->win, i+1, lw->win->_maxx - 1, " ");
          else if (i < (off+h))
-            mvwaddstr(win, i+1, win->_maxx - 1, "#");
+            mvwaddstr(lw->win, i+1, lw->win->_maxx - 1, "#");
          else
-            mvwaddstr(win, i+1, win->_maxx - 1, " ");
-         wattrset(win, A_NORMAL);
+            mvwaddstr(lw->win, i+1, lw->win->_maxx - 1, " ");
+         wattrset(lw->win, A_NORMAL);
       }
    }
 
-   wnoutrefresh(win);
+   wnoutrefresh(lw->win);
    doupdate();
 }
 
@@ -472,11 +483,11 @@ void updateListWin(LISTWIN *win) {
    int pos = (win->win->_maxy - 2)/2;
    if ((win != NULL) && (win->win != NULL)) {
       if (func == PLAYLIST) {
-         fillwin(win->win, win->first, win->list, win->win->_maxy - 2,
-                 win->cur, curSong, win->active);
+         fillwin(win, win->first, win->win->_maxy - 2, win->cur,
+                 curSong, win->active);
       } else {
-         fillwin(win->win, seekBackItem(curSong, &pos), win->list,
-                 win->win->_maxy - 2, curSong, NULL, TRUE);
+         fillwin(win, seekBackItem(curSong, &pos), win->win->_maxy - 2,
+                 curSong, NULL, TRUE);
       }
       if (helpwin->active) {
          touchwin(helpwin->win);
@@ -1439,6 +1450,10 @@ void updateHelpWin() {
    wclrtobot(helpwin->win);
    box(helpwin->win, 0, 0);
 
+   if (! configuration.expert) {
+      mvwaddstr(helpwin->win, 0, 2, helpwin->wname);
+   }
+
    if (func == PLAYER) {
       i = 6;
       j = 5;
@@ -1560,6 +1575,10 @@ void updateInfoWin() {
       wmove(infowin->win, 0, 0);
       wclrtobot(infowin->win);
       box(infowin->win, 0, 0);
+
+      if (! configuration.expert) {
+         mvwaddstr(infowin->win, 0, 2, infowin->wname);
+      }
 
       strcpy(buf, "length:                size:");
       mvwaddstr(infowin->win, 1, 3, buf);
@@ -1703,7 +1722,7 @@ ITEM *getPrevSong() {
 
 /*
  * initializes thee users gamp configuration. will create the ~/.gamp/
- * directory and write the default configuration and logo there. can also
+ * directory and write the default configuration there. can also
  * be used to revert to defaults if you break something in the config
  * file.
  */
@@ -1734,17 +1753,7 @@ void newSetup(CONFIGURATION *config) {
             strcpy(config->configFile, path);
             strcat(config->configFile, "/gamprc");
 
-            config->logoFile = (char *)malloc(sizeof(char) *
-                                              (strlen(path) + 11));
-            if (config->logoFile == NULL)
-               die("newSetup: malloc failure\n");
-            strcpy(config->logoFile, path);
-            strcat(config->logoFile, "/gamp.logo");
-
             writePrefs(NULL, config);
-
-            initLogo(config);
-            writeLogo(NULL, config);
          }
       } else {
          printf("creating your ~/.gamp/ directory.\n");
@@ -1758,17 +1767,7 @@ void newSetup(CONFIGURATION *config) {
             strcpy(config->configFile, path);
             strcat(config->configFile, "/gamprc");
 
-            config->logoFile = (char *)malloc(sizeof(char) *
-                                              (strlen(path) + 11));
-            if (config->logoFile == NULL)
-               die("newSetup: malloc failure\n");
-            strcpy(config->logoFile, path);
-            strcat(config->logoFile, "/gamp.logo");
-
             writePrefs(NULL, config);
-
-            initLogo(config);
-            writeLogo(NULL, config);
          } else {
             die("newSetup: error creating directory \"%s\"\n", path);
          }
@@ -1797,16 +1796,6 @@ void processArgs(int argc, char **argv, CONFIGURATION *config) {
             exit(-1);
          }
 
-      } else if ((strcmp(argv[i], "-l") == 0) ||
-          (strcmp(argv[i], "--logo") == 0)) {
-         if (i + 1 < argc) {
-            i++;
-            config->logoFile = strdup(argv[i]);
-         } else {
-            displayUsage();
-            exit(-1);
-         }
-
       } else if ((strcmp(argv[i], "-d") == 0) ||
           (strcmp(argv[i], "--dir") == 0)) {
          if (i + 1 < argc) {
@@ -1821,6 +1810,14 @@ void processArgs(int argc, char **argv, CONFIGURATION *config) {
                  (strcmp(argv[i], "--help") == 0)) {
          displayUsage();
          exit(0);
+
+      } else if ((strcmp(argv[i], "-x") == 0) ||
+                 (strcmp(argv[i], "--expert") == 0)) {
+         config->expert = TRUE;
+
+      } else if ((strcmp(argv[i], "-n") == 0) ||
+                 (strcmp(argv[i], "--novice") == 0)) {
+         config->expert = FALSE;
 
       } else if ((strcmp(argv[i], "-e") == 0) ||
                  (strcmp(argv[i], "--edit") == 0)) {
@@ -1861,12 +1858,14 @@ void displayUsage() {
    displayVersion();
    printf("usage: gamp [option(s)] [mp3/m3u file(s)]\n");
    printf("options: -c, --config filename  load/save config file\n");
-   printf("         -l, --logo filename    load this ascii logo\n");
    printf("         -d, --dir dirname      start in dirname\n");
    printf("         -h, --help             display this help info\n");
    printf("         -v, --version          display version\n");
    printf("         -p, --play             start playing on startup\n");
    printf("         -s, --setup            sets up ~/.gamp/\n");
+   printf("         -x, --expert           starts in expert mode\n");
+   printf("         -n, --novice           starts in novice mode\n");
+   printf("         -e, --edit             starts in editor\n");
    printf("see manpage gamp(1) for further information.\n");
 
 }
@@ -1888,6 +1887,8 @@ void gampInit() {
    progwin->width = 0;
    progwin->ypos = 0;
    progwin->xpos = 0;
+   progwin->wname = NULL;
+   progwin->wname = strdup("progwin");
    progwin->min = 0;
    progwin->sec = 0;
    progwin->ipos = 0;
@@ -1902,6 +1903,8 @@ void gampInit() {
    volwin->width = 4;
    volwin->xpos = 0;
    volwin->ypos = progwin->height;
+   volwin->wname = NULL;
+   volwin->wname = strdup("volwin");
    volwin->vol = -1;
    volwin->max = 100;
    volwin->incr = 5;
@@ -1916,6 +1919,8 @@ void gampInit() {
    infowin->width = COLS - volwin->width;
    infowin->xpos = volwin->width;
    infowin->ypos = progwin->height;
+   infowin->wname = NULL;
+   infowin->wname = strdup("infowin");
    infowin->win = newwin(infowin->height, infowin->width, infowin->ypos, infowin->xpos);
    if (infowin->win == NULL) die("gampInit: newwin failure\n");
    box(infowin->win, 0, 0);
@@ -1927,6 +1932,8 @@ void gampInit() {
    dirwin->width = 0;
    dirwin->ypos = progwin->height;
    dirwin->xpos = 0;
+   dirwin->wname = NULL;
+   dirwin->wname = strdup("dirwin");
    dirwin->first = NULL;
    dirwin->cur = NULL;
    dirwin->list = NULL;
@@ -1941,6 +1948,8 @@ void gampInit() {
    listwin->width = 0;
    listwin->ypos = dirwin->height + progwin->height; 
    listwin->xpos = 0;
+   listwin->wname = NULL;
+   listwin->wname = strdup("listwin");
    listwin->first = NULL;
    listwin->cur = NULL;
    listwin->list = NULL;
@@ -1960,6 +1969,8 @@ void gampInit() {
    helpwin->win = newwin(helpwin->height, helpwin->width, helpwin->ypos, helpwin->xpos);
    if (helpwin->win == NULL) die("gampInit: newwin failure\n");
    box(helpwin->win, 0, 0);
+   helpwin->wname = NULL;
+   helpwin->wname = strdup("helpwin");
 
 }
 
@@ -1990,7 +2001,7 @@ void gampFinish() {
 
 /*
  * this is the  main function. it does some initial setup, reads
- * configuration and logo, forks off the backend player and the message
+ * configuration, forks off the backend player and the message
  * watching threat, then switches between player and playlist until the
  * user quits, at which time it calls cleanup() and exits.
  */
@@ -2003,7 +2014,6 @@ int main(int argc, char **argv) {
    initPrefs(&configuration); /* initialize preferences */
    processArgs(argc, argv, &configuration); /* process the command line */
    readPrefs(NULL, &configuration); /* read prefs */
-   readLogo(NULL, &configuration); /* read logo */
    dumpPrefs(&configuration); /* dump prefs (for debugging) */
 
    /*
@@ -2026,22 +2036,21 @@ int main(int argc, char **argv) {
    forkIt(); /* fork the player */
 
    initscr(); /* ncurses init stuff */
-#ifdef USE_COLOR
-   start_color();
-   if (has_colors()) {
-     configuration.useColor = TRUE;
-     init_pair(COLOR_BLACK, COLOR_BLACK, COLOR_BLACK);
-/*     color_set(0, NULL);*/
-     init_pair(COLOR_GREEN, COLOR_GREEN, COLOR_BLACK);
-     init_pair(COLOR_RED, COLOR_RED, COLOR_BLACK);
-     init_pair(COLOR_CYAN, COLOR_CYAN, COLOR_BLACK);
-     init_pair(COLOR_WHITE, COLOR_WHITE, COLOR_BLACK);
-     init_pair(COLOR_MAGENTA, COLOR_MAGENTA, COLOR_BLACK);
-     init_pair(COLOR_BLUE, COLOR_BLUE, COLOR_BLACK);
-     init_pair(COLOR_YELLOW, COLOR_YELLOW, COLOR_BLACK);
+   if (configuration.color) {
+      start_color();
+      if (has_colors()) {
+        init_pair(COLOR_BLACK, COLOR_BLACK, COLOR_BLACK);
+/*        color_set(0, NULL);*/
+        init_pair(COLOR_GREEN, COLOR_GREEN, COLOR_BLACK);
+        init_pair(COLOR_RED, COLOR_RED, COLOR_BLACK);
+        init_pair(COLOR_CYAN, COLOR_CYAN, COLOR_BLACK);
+        init_pair(COLOR_WHITE, COLOR_WHITE, COLOR_BLACK);
+        init_pair(COLOR_MAGENTA, COLOR_MAGENTA, COLOR_BLACK);
+        init_pair(COLOR_BLUE, COLOR_BLUE, COLOR_BLACK);
+        init_pair(COLOR_YELLOW, COLOR_YELLOW, COLOR_BLACK);
 
+      }
    }
-#endif
    savetty();
    curs_set(0); /* invisible cursor */
    cbreak();
@@ -2057,7 +2066,7 @@ int main(int argc, char **argv) {
    pthread_detach(msg_thread);
 
    gampInit();
-   if (configuration.useColor) {
+   if (configuration.color) {
      wcolor_set(progwin->win, COLOR_WHITE, NULL);
      wcolor_set(listwin->win, COLOR_WHITE, NULL);
      wcolor_set(infowin->win, COLOR_WHITE, NULL);

@@ -3,9 +3,6 @@
 
 #include CURSES_LOC
 
-#define LOGO_MAX_X 100
-#define LOGO_MAX_Y 40
-
 typedef struct ITEM {
    char *path; /* song or directory name with full path */
    char *name; /* name of song or dir (pointer to within item.path */
@@ -35,6 +32,7 @@ typedef struct LISTWIN {
    int width;
    int xpos;
    int ypos;
+   char *wname;
    int pos;
    ITEM *first;
    ITEM *cur;
@@ -48,6 +46,7 @@ typedef struct VOLWIN {
    int width;
    int xpos;
    int ypos;
+   char *wname;
    int vol;
    int max;
    int incr;
@@ -59,6 +58,7 @@ typedef struct INFOWIN {
    int width;
    int xpos;
    int ypos;
+   char *wname;
 } INFOWIN;
 
 typedef struct PROGWIN {
@@ -67,6 +67,7 @@ typedef struct PROGWIN {
    int width;
    int xpos;
    int ypos;
+   char *wname;
    int min;
    int sec;
    int ipos;
@@ -79,6 +80,7 @@ typedef struct HELPWIN {
    int width;
    int xpos;
    int ypos;
+   char *wname;
    int active;
 } HELPWIN;
 
@@ -108,17 +110,14 @@ typedef struct CONFIGURATION {
    int timeMode; /* REMAINING or ELAPSED */
    int startWith; /* PLAYER or PLAYLIST */
    int ignoreID3; /* TRUE or FALSE */
-   char *logoFile; /* full path to gamp logo file */
-   int logoHeight; /* height of logo (in lines) */
-   int logoWidth; /* width of logo (in cols) */
-   char **logo; /* logo */
+   int expert; /* TRUE or FALSE */
+   int color; /* TRUE or FALSE. ignored if term doesnt support color */
    char *configFile; /* full path to config file */
    int ignoreCase; /* ignore filename case when sorting */
    int repeatMode; /* repeat none, one, all */
    int stepTimeout; /* delay (in milliseconds) between ffwd/rew steps */
    char *volup;
    char *voldown;
-   int useColor;
 
 } CONFIGURATION;
 

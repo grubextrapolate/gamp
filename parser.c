@@ -133,6 +133,18 @@ int readPrefs(char *filename, CONFIGURATION *config) {
                else if (strcmp(ptr + 10, "FALSE") == 0)
                   config->ignoreID3 = FALSE;
 
+            } else if (strncmp(ptr, "expertMode=", 11) == 0) {
+               if (strcmp(ptr + 11, "TRUE") == 0)
+                  config->expert = TRUE;
+               else if (strcmp(ptr + 11, "FALSE") == 0)
+                  config->expert = FALSE;
+
+            } else if (strncmp(ptr, "useColor=", 9) == 0) {
+               if (strcmp(ptr + 11, "TRUE") == 0)
+                  config->color = TRUE;
+               else if (strcmp(ptr + 11, "FALSE") == 0)
+                  config->color = FALSE;
+
             } else if (strncmp(ptr, "ignoreCase=", 11) == 0) {
                if (strcmp(ptr + 11, "TRUE") == 0)
                   config->ignoreCase = TRUE;
@@ -163,15 +175,6 @@ int readPrefs(char *filename, CONFIGURATION *config) {
                   if (config->voldown != NULL)
                      free(config->voldown);
                   config->voldown = NULL;
-               }
-
-            } else if (strncmp(ptr, "logoFile=", 9) == 0) {
-               if (*(ptr+9) != '\0') {
-                  config->logoFile = strdup(ptr + 9);
-               } else {
-                  if (config->logoFile != NULL)
-                     free(config->logoFile);
-                  config->logoFile = NULL;
                }
 
             } else if (strncmp(ptr, "stepTimeout=", 12) == 0) {
@@ -287,6 +290,20 @@ int writePrefs(char *filename, CONFIGURATION *config) {
          else
             fprintf(outfile, "FALSE\n");
 
+         fprintf(outfile, "# expert mode? TRUE or FALSE\n");
+         fprintf(outfile, "expertMode=");
+         if (config->expert == TRUE)
+            fprintf(outfile, "TRUE\n");
+         else
+            fprintf(outfile, "FALSE\n");
+
+         fprintf(outfile, "# use color? TRUE or FALSE. ignored if term does not support color\n");
+         fprintf(outfile, "useColor=");
+         if (config->color == TRUE)
+            fprintf(outfile, "TRUE\n");
+         else
+            fprintf(outfile, "FALSE\n");
+
          fprintf(outfile, "# ignore case when sorting? TRUE or FALSE\n");
          fprintf(outfile, "ignoreCase=");
          if (config->ignoreCase == TRUE)
@@ -302,14 +319,6 @@ int writePrefs(char *filename, CONFIGURATION *config) {
             fprintf(outfile, "repeatOne\n");
          else if (config->repeatMode == repeatAll)
             fprintf(outfile, "repeatAll\n");
-
-         fprintf(outfile, "# full path to your chosen logo\n");
-         fprintf(outfile, "logoFile=");
-         if ((config->logoFile != NULL) &&
-             (config->logoFile[0] != '\0'))
-            fprintf(outfile, "%s\n", config->logoFile);
-         else
-            fprintf(outfile, "\n");
 
          fprintf(outfile, "# command to execute to increase volume\n");
          fprintf(outfile, "volUpCmd=");
@@ -356,11 +365,10 @@ int dumpPrefs(CONFIGURATION *config) {
    debug("dumpPrefs: timeMode=\"%d\"\n", config->timeMode);
    debug("dumpPrefs: startWith=\"%d\"\n", config->startWith);
    debug("dumpPrefs: ignoreID3=\"%d\"\n", config->ignoreID3);
+   debug("dumpPrefs: expert=\"%d\"\n", config->expert);
+   debug("dumpPrefs: color=\"%d\"\n", config->color);
    debug("dumpPrefs: ignoreCase=\"%d\"\n", config->ignoreCase);
    debug("dumpPrefs: repeatMode=\"%d\"\n", config->repeatMode);
-   debug("dumpPrefs: logoHeight=%d\n", config->logoHeight);
-   debug("dumpPrefs: logoWidth=%d\n", config->logoWidth);
-   debug("dumpPrefs: logoFile=\"%s\"\n", config->logoFile);
    debug("dumpPrefs: volup=\"%s\"\n", config->volup);
    debug("dumpPrefs: voldown=\"%s\"\n", config->voldown);
    debug("dumpPrefs: stepTimeout=%d\n", config->stepTimeout);
@@ -396,12 +404,10 @@ void initPrefs(CONFIGURATION *config) {
    config->timeMode = REMAINING;
    config->startWith = PLAYER;
    config->ignoreID3 = FALSE;
+   config->expert = FALSE;
+   config->color = TRUE;
    config->ignoreCase = TRUE;
    config->repeatMode = repeatNone;
-
-   config->logoHeight = 0;
-   config->logoWidth = 0;
-   config->logoFile = NULL;
 
    config->volup = strdup("aumix -w +10");
    config->voldown = strdup("aumix -w -10");
