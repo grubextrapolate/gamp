@@ -77,9 +77,8 @@ extern int songOpen(ITEM *sng); /* attempts to open song and returns file
 extern int songSize(ITEM *sng); /* returns length */
 extern void infoReset(AudioInfo *inf); /* resets info to default values? */
 extern void updatePlaying(ITEM *sng);
-extern void updateStopped();
-extern void showFilename(WINDOW *, ITEM *);
 extern void toggleHelpWin();
+extern void updateProgWin();
 extern void updateHelpWin();
 extern void updateInfoWin();
 extern void toggleInfoWin();
@@ -101,7 +100,7 @@ extern void initVolume(VOLWIN *);
 extern LISTWIN *dirwin; /* direcory list window */
 extern LISTWIN *listwin; /* playlist window */
 extern INFOWIN *infowin; /* info window */
-extern INFOWIN *progwin; /* progress/title/time window */
+extern PROGWIN *progwin; /* progress/title/time window */
 extern HELPWIN *helpwin; /* popup help window */
 extern VOLWIN *volwin; /* volume window */
 

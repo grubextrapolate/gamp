@@ -29,7 +29,7 @@ LISTWIN *dirwin = NULL; /* direcory list window (in editor) */
 LISTWIN *listwin = NULL; /* listwin->list window (in editor) */
 
 VOLWIN *volwin = NULL;
-INFOWIN *progwin = NULL; /* progress/time/song window */
+PROGWIN *progwin = NULL; /* progress/time/song window */
 
 INFOWIN *infowin = NULL; /* info window */
 HELPWIN *helpwin = NULL; /* popup help window */
@@ -109,21 +109,58 @@ void initDirlist(char *pwd, ITEMLIST **list) {
  * information if the track is already playing.
  */
 void updateProgWin() {
+   int i = 0, mymin = 0, mysec = 0;
+   char tmpstr[MAX_STRLEN];
 
-   wmove(progwin->win, 0, 0);
-   wclrtobot(progwin->win);
-   box(progwin->win, 0, 0);
-   if (curState & playState)
-      showFilename(progwin->win, curSong);
+   if ((progwin != NULL) && (progwin->win != NULL)) {
+      wmove(progwin->win, 0, 0);
+      wclrtobot(progwin->win);
+      box(progwin->win, 0, 0);
 
-   if (configuration.repeatMode == repeatOne)
-      mvwaddstr(progwin->win, 1, 1, "r");
-   else if (configuration.repeatMode == repeatAll)
-      mvwaddstr(progwin->win, 1, 1, "R");
+      if (configuration.repeatMode == repeatOne)
+         mvwaddstr(progwin->win, 1, 1, "r");
+      else if (configuration.repeatMode == repeatAll)
+         mvwaddstr(progwin->win, 1, 1, "R");
 
-   wnoutrefresh(progwin->win);
-   doupdate();
+      if (curState & playState) {
+         mvwaddstr(progwin->win, 1, 11, progwin->name);
 
+      for (i = 0; i < (progwin->win->_maxx - 1); i++) {
+         if (i < progwin->ipos)
+            tmpstr[i] = '=';
+         else if (i == progwin->ipos)
+            tmpstr[i] = '|';
+         else /* (i > progwin->ipos) */
+            tmpstr[i] = '-';
+      }
+      tmpstr[progwin->win->_maxx - 1] = '\0';
+      mvwaddstr(progwin->win, 2, 1, tmpstr);
+
+      mymin = progwin->min;
+      mysec = progwin->sec;
+      if ((configuration.timeMode == ELAPSED) || ((curSong != NULL) && (curSong->info == NULL))) {
+         if (mymin > 99) {
+            mymin = 99;
+            mysec = 59;
+         }
+         sprintf(tmpstr, "[%3d:%02d] ", mymin, mysec);
+      } else {
+         if (abs(mymin) > 99) {
+            mymin = -99;
+            mysec = 59;
+         }
+         if (mymin == 0) {
+            sprintf(tmpstr, "[ -0:%02d] ", mysec);
+         } else {
+            sprintf(tmpstr, "[%3d:%02d] ", mymin, mysec);
+         }
+      }
+      mvwaddstr(progwin->win, 1, 2, tmpstr);
+      }
+
+      wnoutrefresh(progwin->win);
+      doupdate();
+   }
 }
 
 /*
@@ -138,7 +175,7 @@ int playPlaylist() {
    refresh();
    updateInfoWin();
    updateVolWin();
-//   updateProgWin();
+   updateProgWin();
    updateListWin(listwin);
 
    if (helpwin->active)
@@ -253,7 +290,7 @@ int playPlaylist() {
 
          case 's': /* stop */
             playerStop();
-            updateStopped();
+            updateProgWin();
             break;
 
          case 'l': /* back to listwin->list */
@@ -450,7 +487,7 @@ int editPlaylist() {
 
    /* draw boxes in windows and fill them with something */
    refresh();
-//   updateProgWin();
+   updateProgWin();
    updateListWin(dirwin);
    updateListWin(listwin);
 
@@ -1198,24 +1235,16 @@ void updateAudioInfo(AudioInfo *inf) {
  * updates the song time display
  */
 void updateSongTime(int cur_frame) {
-   char tmpstr[20];
    int minutes = 0;
    int seconds = 0;
 
-   if ((progwin->win != NULL) && (curSong != NULL)) {
+   if ((progwin != NULL) && (curSong != NULL)) {
       seconds = (cur_frame*32)/1225;
  
       /* if the player doesnt send info then we cant do remaining time */
       if ((configuration.timeMode == ELAPSED) || (curSong->info == NULL)) {
          minutes = seconds / 60;
          seconds = seconds % 60;
-
-         if (minutes > 99) {
-            minutes = 99;
-            seconds = 59;
-         }
-
-         sprintf(tmpstr, "[%3d:%02d] ", minutes, seconds);
       } else {
          seconds = curSong->length - seconds;
  
@@ -1223,21 +1252,10 @@ void updateSongTime(int cur_frame) {
 
          minutes = -(seconds / 60);
          seconds = seconds % 60;
-
-         if (abs(minutes) > 99) {
-            minutes = -99;
-            seconds = 59;
-         }
-
-         if (minutes == 0) {
-            sprintf(tmpstr, "[ -0:%02d] ", seconds);
-         } else {
-            sprintf(tmpstr, "[%3d:%02d] ", minutes, seconds);
-         }
       }
-      mvwaddstr(progwin->win, 1, 2, tmpstr);
-      wnoutrefresh(progwin->win);
-      doupdate();
+      progwin->min = minutes;
+      progwin->sec = seconds;
+      updateProgWin();
    }
 }
 
@@ -1245,23 +1263,10 @@ void updateSongTime(int cur_frame) {
  * updates the position in the song as a percentage (ie: 0 <= pos <= 1)
  */
 void updateSongPosition(double pos) {
-   int i, j;
-   char tmpstr[MAX_STRLEN];
 
-   if (progwin->win != NULL) {
-      j = (progwin->win->_maxx - 1)*pos;
-      for (i = 0; i < (progwin->win->_maxx - 1); i++) {
-         if (i < j)
-            tmpstr[i] = '=';
-         else if (i == j)
-            tmpstr[i] = '|';
-         else /* (i > j) */
-            tmpstr[i] = '-';
-      }
-      tmpstr[progwin->win->_maxx - 1] = '\0';
-      mvwaddstr(progwin->win, 2, 1, tmpstr);
-      wnoutrefresh(progwin->win);
-      doupdate();
+   if ((progwin != NULL) && (progwin->win != NULL)) {
+     progwin->ipos = (progwin->win->_maxx - 1)*pos;
+     updateProgWin();
    }
 }
 
@@ -1324,36 +1329,10 @@ void updatePlaying(ITEM *sng) {
       fprintf(stderr, "\033]0;%s\007", curSong->name);
 
    debug("updatePlaying:sng->name=%s\n", sng->name);
-   showFilename(progwin->win, sng);
-}
-
-/*
- * clears filename and progress windows
- */
-void updateStopped() {
-   debug("updateStopped: clearing progwin->win\n");
-
-   if (func == PLAYER) {
-      wmove(progwin->win, 0, 0);
-      wclrtobot(progwin->win);
-
-      box(progwin->win, 0, 0);
-      wnoutrefresh(progwin->win);
-      updateInfoWin();
-      doupdate();
-   }
-}
-
-/*
- * writes the filename in the title window
- */
-void showFilename(WINDOW *win, ITEM *itm) {
-   char *tmp = NULL;
-   if ((win != NULL) && (itm != NULL)) {
-      tmp = strpad(itm, win->_maxx - 11);
-      mvwaddstr(win, 1, 11, tmp);
-      wnoutrefresh(win);
-      doupdate();
+   if (progwin != NULL) {
+      if (progwin->name != NULL) free(progwin->name);
+      progwin->name = strpad(sng, progwin->win->_maxx - 11);
+      updateProgWin();
    }
 }
 
@@ -1808,12 +1787,16 @@ void displayVersion() {
 
 void gampInit() {
 
-   progwin = (INFOWIN *)malloc(sizeof(INFOWIN));
+   progwin = (PROGWIN *)malloc(sizeof(PROGWIN));
    if (progwin == NULL) die("gampInit: malloc error\n");
    progwin->height = 4;
    progwin->width = 0;
    progwin->ypos = 0;
    progwin->xpos = 0;
+   progwin->min = 0;
+   progwin->sec = 0;
+   progwin->ipos = 0;
+   progwin->name = NULL;
    progwin->win = newwin(progwin->height, progwin->width, progwin->ypos, progwin->xpos);
    if (progwin->win == NULL) die("gampInit: newwin failure\n");
    box(progwin->win, 0, 0);

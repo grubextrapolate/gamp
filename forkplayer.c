@@ -661,7 +661,7 @@ void playerPlay(ITEM *sng) {
          backendNext = FALSE;
          curSong = NULL;
          playerStop();
-         updateStopped();
+         updateProgWin();
       }
 /*      playerStop();
       msg.type = MSG_RELEASE;

@@ -61,6 +61,18 @@ typedef struct INFOWIN {
    int ypos;
 } INFOWIN;
 
+typedef struct PROGWIN {
+   WINDOW *win;
+   int height;
+   int width;
+   int xpos;
+   int ypos;
+   int min;
+   int sec;
+   int ipos;
+   char *name;
+} PROGWIN;
+
 typedef struct HELPWIN {
    WINDOW *win;
    int height;
