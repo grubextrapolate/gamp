@@ -1,4 +1,4 @@
-/* gamp.c v0.1.2
+/* gamp.c v0.1.3
    by grub <grub@toast.net> and borys <borys@bill3.ncats.net>
 
    ncurses based command line interface to amp. has a directory browser
@@ -8,14 +8,13 @@
    WORKING:
 
    -playlist seems to work ok for adding and removing.
-   -directory browsing sometimes works, sometimes doesnt. 
+   -directory browsing works.
    -directory list is sorted.
    -file filtering for *.mp3 (case insensitive).
    -passing start directory on command line seems to be working.
 
    FIX ME:
 
-   -directory browsing segfaults some of the time.
    -playlist randomizer segfaults.
 
    TODO (the big list):
@@ -383,8 +382,10 @@ int play_playlist(int argc, char *argv[]) {
             wnoutrefresh(helpwin);
             doupdate();
 
-            strcpy(tmpstr, "/home/grub/gamp-0.0.7/45630061.mp3");
-/*            decodeMPEG(tmpstr,0); */
+            strcpy(filename, playlist.dirs[current]);
+            strcat(filename, "/");
+            strcat(filename, playlist.files[current]);
+            decodeMPEG(filename,0);
 
             clear_filename(titlewin);
             refresh();
@@ -475,6 +476,8 @@ int edit_playlist(int argc, char *argv[]) {
     int dirwin_height, playwin_height;  /* height of our windows */
     int dirwin_first = 0, playwin_first = 0; /* first item in window */
     int dirwin_start, playwin_start; /* starting position of windows */
+
+    char start_dir[150] = "";
 
     if (argc == 2)
         strcat(start_dir, argv[1]);
