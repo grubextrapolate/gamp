@@ -11,6 +11,7 @@
 #include "parser.h"
 #include "logo.h"
 #include "input.h"
+#include <math.h>
 
 #include <stdlib.h>
 #include CURSES_LOC

@@ -396,28 +396,69 @@ void fillwin(WINDOW *win, ITEM *first, ITEMLIST *list, int num,
    ITEM *cur = NULL;
    int i = 0;
    char *tmpstr = NULL;
+   int h = 0;
+   double frac = 0;
+   double fraca = 0;
+   int n = 0;
+   int off = 0;
 
    wmove(win, 0, 0);
    wclrtobot(win);
    box(win, 0, 0);
    cur = first;
-   while ((i <= num) && (cur != NULL)) {
+   if ((list != NULL) && (list->num != 0)) {
+      while ((i <= num) && (cur != NULL)) {
 
-      if (cur == sel) {
-         mvwaddstr(win, i+1, 1, "-");
-         if (active) wattrset(win, A_REVERSE);
+         if (cur == sel) {
+            mvwaddstr(win, i+1, 1, "-");
+            if (active) wattrset(win, A_REVERSE);
+         }
+         if (cur->marked) mvwaddstr(win, i+1, 1, "*");
+         if (cur == play) mvwaddstr(win, i+1, 1, ">");
+         tmpstr = strpad(cur, win->_maxx - 4);
+         mvwaddstr(win, i+1, 2, tmpstr);
+         free(tmpstr);
+         if (cur == sel) {
+            if (active) wattrset(win, A_NORMAL);
+            mvwaddstr(win, i+1, win->_maxx - 2, "-");
+         }
+         cur = cur->next;
+         i++;
       }
-      if (cur->marked) mvwaddstr(win, i+1, 1, "*");
-      if (cur == play) mvwaddstr(win, i+1, 1, ">");
-      tmpstr = strpad(cur, win->_maxx - 3);
-      mvwaddstr(win, i+1, 2, tmpstr);
-      free(tmpstr);
-      if (cur == sel) {
-         if (active) wattrset(win, A_NORMAL);
-         mvwaddstr(win, i+1, win->_maxx - 1, "-");
+
+
+      frac = (double)num/list->num;
+      if (frac > 1) frac = 1;
+      h = (int)(frac * (double)num + 0.5);
+      if (h < 1) h = 1;
+      if (h >= num) h = num;
+      n = 0;
+      cur = sel;
+      while (cur != NULL) {
+         n = n + 1;
+         cur = cur->prev;
       }
-      cur = cur->next;
-      i++;
+      fraca = (double)n/list->num;
+      if (fraca > 1) fraca = 1;
+//      off = (int) (((double)n / (list->num - num)) * num);
+      off = (int)(fraca * (double)num + 0.5);
+      if (list->num <= num) off = 0;
+      if (off >= num) off = num;
+//((double)n / (list->num - num)) * num);
+
+      debug("num=%d, list->num=%d, frac=%f, h=%d, n=%d, off=%d\n",
+num, list->num, frac, h, n, off);
+
+      for (i = 0; i <= num; i++) {
+         wattrset(win, A_REVERSE);
+         if (i < off)
+            mvwaddstr(win, i+1, win->_maxx - 1, " ");
+         else if (i < (off+h))
+            mvwaddstr(win, i+1, win->_maxx - 1, "#");
+         else
+            mvwaddstr(win, i+1, win->_maxx - 1, " ");
+         wattrset(win, A_NORMAL);
+      }
    }
 
    wnoutrefresh(win);
