@@ -1,4 +1,4 @@
-/* gamp.c v0.1.1
+/* gamp.c v0.1.2
    by grub <grub@toast.net> and borys <borys@bill3.ncats.net>
 
    ncurses based command line interface to amp. has a directory browser
@@ -303,10 +303,14 @@ void fillwin(WINDOW *win, STRLIST *list, int first, int width, int height) {
         /* if it is neither then it is a dir+file combo so
            concatentate dir to file and print */
         else {
-            dirfilecat = strdup(list->dirs[i+first]);
+            dirfilecat = malloc(sizeof(char) *
+                         (strlen(list->dirs[i+first]) +
+                          strlen(list->files[i+first]) + 2));
+            strcpy(dirfilecat, list->dirs[i+first]);
             strcat(dirfilecat, "/");
             strcat(dirfilecat, list->files[i+first]);
             strtrunc(dirfilecat, width-2);
+            free(dirfilecat);
         }
         mvwaddstr(win, i+1, 1, tmpstr);
     }
@@ -471,8 +475,6 @@ int edit_playlist(int argc, char *argv[]) {
     int dirwin_height, playwin_height;  /* height of our windows */
     int dirwin_first = 0, playwin_first = 0; /* first item in window */
     int dirwin_start, playwin_start; /* starting position of windows */
-
-    char start_dir[]=""; /* start directory */
 
     if (argc == 2)
         strcat(start_dir, argv[1]);
