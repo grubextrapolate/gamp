@@ -1,75 +1,10 @@
-/* gamp.c v0.1.8
+/* gamp.c v0.1.9
    by grub <grub@toast.net> and borys <borys@bill3.ncats.net>
+   based on amp by Tomislav Uzelac <tuzelac@rasip.fer.hr>
 
    ncurses based command line interface to amp. has a directory browser
    and other fun stuff like those other x based clients, but for the
    hardcore command line enthusiast.
-
-   WORKING:
-
-   -it plays!
-   -prev/next/stop/pause work.
-   -playlist seems to work ok for adding and removing.
-   -directory browsing works.
-   -directory list is sorted.
-   -file filtering for *.mp3 (case insensitive).
-   -passing start directory on command line seems to be working.
-
-   FIX ME:
-
-   -playlist randomizer segfaults.
-
-   TODO (the big list):
-
-   -edit playlist while playing.
-   -ffwd/rew for player
-   -documentation (in and out of source).
-   -load/save playlists (possibly via -p <filename> switch)
-   -text-based frequency analyzer?
-   -redo structure for directory list to save memory
-   -webpage?
-   -any other cool items we can think of
-
-   CHANGES:
-
-   v0.1.7:
-   -working spectrum analyzer
-   -fixed segfault on 'stop' if not playing.
-
-   v0.1.6:
-   -bugfix and minor cosmetic changes.
-   -added more commands.
-   -added help window in playlist editor.
-
-   v0.1.5:
-   -it plays better now
-   -next/prev/stop/pause work
-   -minor cosmetic changes.
-
-   v0.1.4:
-   -it plays!!!!!!!
-
-   v0.1.0:
-   -working on the player. big restructuring. incorperating parts of
-    audio.c from amp to make it play now. almost there!
-   -moved the functions associated with the STRLIST structure to gamp.h to
-    make the main source more readable.
-
-   v0.0.7:
-   -minor cleanup. still confused whats up with the browser segfaulting
-    after you add to the playlist.
-   -some big changes to program control. made way to change between the
-    player and the playlist editor.
-   -started working on the player.
-
-   v0.0.6:
-   -further cleanup. fixed some memory leaks.
-
-   v0.0.5:
-   -bunch of restructuring to clean things up. added new add, delete,
-    isdir, isfile, swap functions.
-   -fixed filename filter.
-   -command line directory seems to be working now.
 
 */
 
@@ -87,6 +22,7 @@
 
 /* include our stuff */
 #include "gamp.h"
+#include "spectrum.h"
 #include <curses.h>
 #include <dirent.h>
 #include <stdlib.h>
@@ -132,8 +68,8 @@ int PAUSE=9;
 int PLAY=10;
 int START=11;
 
-int NUM_BANDS=21;
-int bar_heights[22];
+int NUM_BANDS=18;
+int bar_heights[32];
 
 STRLIST dirlist  = { 0, 0, 0, 0 };
 STRLIST playlist = { 0, 0, 0, 0 };
@@ -185,12 +121,16 @@ void statusDisplay(WINDOW *twin, WINDOW *mwin, int height, int width,
 
 	sprintf(tmpstr, " [%2d:%02d]", minutes, seconds);
         mvwaddstr(twin, 1, 1, tmpstr);
-        sanalyzer_render_freq(mwin, height, width);
-        refresh();
         wnoutrefresh(twin);
+
+    }
+
+    sanalyzer_render_freq(mwin, height, width);
+
+    if (!(frameNo%2)) {
+        refresh();
         wnoutrefresh(mwin);
         doupdate();
-
     }
     fflush(stderr);
 }
@@ -331,9 +271,10 @@ void clear_filename(WINDOW *win) {
 int play_playlist(int argc, char *argv[]) {
     WINDOW *titlewin, *helpwin, *mainwin;  /* our windows */
     int stop = CONT;   /* stopping condition for the program */
-    int play = START;
+    int play = STOP;
     int current = 0;
     int ch;
+    int currentVolume = 100;
     char filename[150] = "";
 
     int first_loop = TRUE;
@@ -370,9 +311,11 @@ int play_playlist(int argc, char *argv[]) {
         ch = wgetch(titlewin);
         switch(ch) {
             case 'q': /* quit program */
-                if (play == PLAY) {
+                if ((play == PLAY) || (play == PAUSE)) {
                     fclose(in_file);
                     audioBufferClose();
+                    wclear(mainwin);
+                    box(mainwin, 0, 0);
                 }
 
                 last_loop = FALSE;
@@ -390,7 +333,7 @@ int play_playlist(int argc, char *argv[]) {
                 break;
 
             case 'f': /* ffwd */
-                if (play == PLAY) {
+                if ((play == PLAY) || (play == PAUSE)) {
                    processHeader(&header,cnt);
                    layer3_frame(&header,cnt);
                    processHeader(&header,cnt);
@@ -406,7 +349,7 @@ int play_playlist(int argc, char *argv[]) {
                 break;
 
             case 'r': /* rew */
-                if (play == PLAY) {
+                if ((play == PLAY) || (play == PAUSE)) {
 /*                   processHeader(&header,cnt);
                    layer3_frame(&header,cnt);
                    processHeader(&header,cnt);
@@ -423,46 +366,67 @@ int play_playlist(int argc, char *argv[]) {
 
             case 'n': /* next */
                 if (current < playlist.cur - 1) {
-                    fclose(in_file);
-                    audioBufferClose();
+                    if ((play == PLAY) || (play == PAUSE)) {
+                        fclose(in_file);
+                        audioBufferClose();
 
+                        wclear(mainwin);
+                        box(mainwin, 0, 0);
+
+                        last_loop = FALSE;
+                        first_loop = TRUE;
+                    }
                     current++;
-                    last_loop = FALSE;
-                    first_loop = TRUE;
                 }
                 break;
 
             case 'v': /* prev */
                 if (current > 0) {
-                    fclose(in_file);
-                    audioBufferClose();
+                    if ((play == PLAY) || (play == PAUSE)) {
+                        fclose(in_file);
+                        audioBufferClose();
 
+                        wclear(mainwin);
+                        box(mainwin, 0, 0);
+
+                        last_loop = FALSE;
+                        first_loop = TRUE;
+                    }
                     current--;
-                    last_loop = FALSE;
-                    first_loop = TRUE;
                 }
                 break;
 
             case 'a': /* pause */
-                if (play == PAUSE) /* unpause if already paused */
-                    play = PLAY;
-                else if (play == PLAY)
+                if (play == PLAY) {
                     play = PAUSE; /* pause if playing */
-                nodelay(titlewin, FALSE);
-                nodelay(mainwin, FALSE);
-                nodelay(helpwin, FALSE);
+                    nodelay(titlewin, FALSE);
+                    nodelay(mainwin, FALSE);
+                    nodelay(helpwin, FALSE);
+                }
+                else if (play == PAUSE) { /* unpause if already paused */
+                    play = PLAY;
+                    nodelay(titlewin, TRUE);
+                    nodelay(mainwin, TRUE);
+                    nodelay(helpwin, TRUE);
+                }
                 break;
 
-            case '+': /* increase volume */
-                audioSetVolume(100);
+            case '+': case '=': /* increase volume */
+                if (currentVolume < 100) {
+                    currentVolume += 10;
+                    audioSetVolume(currentVolume);
+                }
                 break;
 
-            case '-': /* decrease volume */
-                audioSetVolume(0);
+            case '-': case '_': /* decrease volume */
+                if (currentVolume > 0) {
+                    currentVolume -= 10;
+                    audioSetVolume(currentVolume);
+                }
                 break;
 
             case 's': /* stop */
-                if (play == PLAY) {
+                if ((play == PLAY) || (play == PAUSE)) {
                     fclose(in_file);
                     audioBufferClose();
 
@@ -471,6 +435,8 @@ int play_playlist(int argc, char *argv[]) {
                     play = STOP;
 
                     clear_filename(titlewin);
+                    wclear(mainwin);
+                    box(mainwin, 0, 0);
                     refresh();
                     wnoutrefresh(titlewin);
                     wnoutrefresh(mainwin);
@@ -481,20 +447,24 @@ int play_playlist(int argc, char *argv[]) {
                     nodelay(helpwin, FALSE);
                 }
                 else if (play == STOP) {
-                    if (current >= playlist.cur)
+                    if (playlist.cur > 0)
                         current = 0;
                 }
 
                 break;
 
             case 'l': /* back to playlist */
-                if (play == PLAY) {
+                if ((play == PLAY) || (play == PAUSE)) {
                     fclose(in_file);
                     audioBufferClose();
 
                     last_loop = FALSE;
                     first_loop = TRUE;
                     play = STOP;
+
+                    wclear(mainwin);
+                    box(mainwin, 0, 0);
+
                     nodelay(titlewin, FALSE);
                     nodelay(mainwin, FALSE);
                     nodelay(helpwin, FALSE);
@@ -567,7 +537,18 @@ int play_playlist(int argc, char *argv[]) {
                 if (current == playlist.cur) {
                     play = STOP;
                     current = 0;
+                    wclear(mainwin);
+                    box(mainwin, 0, 0);
+                    refresh();
+                    wnoutrefresh(titlewin);
+                    wnoutrefresh(mainwin);
+                    wnoutrefresh(helpwin);
+                    doupdate();
                 }
+
+                nodelay(titlewin, FALSE);
+                nodelay(mainwin, FALSE);
+                nodelay(helpwin, FALSE);
 
                 cnt = 0;
                 last_loop = FALSE;
@@ -619,7 +600,7 @@ int edit_playlist(int argc, char *argv[]) {
             playwin_width, playwin_height);
     box(helpwin, 0, 0);
 
-    strcpy(tmpstr, " Quit Clear All (tab)switch (left)remove (right)add/browse");
+    strcpy(tmpstr, " Quit Clear All (tab)switch (left)remove (right)add/browse Player");
     mvwaddstr(helpwin, 1, 1, tmpstr);
 
     /* refresh screen */

@@ -1,37 +1,49 @@
-###---> in 0.7.1
-- indicate that we don't know how to decode MPEG2.5. sorry.
-- a dummy crc check (we can play crc protected files now)
-- an altogether better huffman decoding - a complete rewrite
-- skip first, or first few, frames if main_data_begin is non zero/too big
-- fixed mono playing - a bug in transform.c
-- fixed /dev/dsp initialization 
-- included Karl's IRIX port
-- fixed a bug in fras_l and fras_s
-- added a part of huffman table 13 that was missing
-- included Karl's optimization patch - a huge speedup
-- included Lutz' HP/UX port
+CHANGES:
 
-###---> in 0.7.2
-- added clipping code
-- fixed a bug in huffman decoding
-- included Dan Nelson's FreeBSD port
-- Edouard's xmpeg3 gui is a part of the distribution now
+   v0.1.9:
+   -spectrum analyzer works.
+   -minor cosmetic changes.
+   -fixed a few bugs in the player that caused segfaults.
+   -randomizer no longer segfaults, but doesnt randomize yet.
 
-###---> in 0.7.3
-Andrew Richards:
-- Reorganised audio.c (alot!)
-- Moved the audio device specific stuff to separate architecture files
-- Added a pipe based audio buffer
-- Added an args.c for argument processing with getopt_long()
-- Added preliminary volume control
-- Added the ability to play more than one file
-- Added stdin and stdout support
-- Added configure support
-- Added some debugging features
-Karl Oygard:
-- optimised the Huffman decoder 
-- more optimisations in transform.c, misc2.c, getbits.c, ...
-Tomislav Uzelac:
-- new imdct algorithm (thanks to Jeff Tsay, Mikko Tommila)
-- minor bugfixes 
+   v0.1.8:
+   -first (semi)public tests.
 
+   v0.1.7:
+   -working on spectrum analyzer.
+   -fixed segfault on 'stop' if not playing.
+
+   v0.1.6:
+   -bugfix and minor cosmetic changes.
+   -added more commands.
+   -added help window in playlist editor.
+
+   v0.1.5:
+   -it plays better now
+   -next/prev/stop/pause work
+   -minor cosmetic changes.
+
+   v0.1.4:
+   -it plays!!!!!!!
+
+   v0.1.0:
+   -working on the player. big restructuring. incorperating parts of
+    audio.c from amp to make it play now. almost there!
+   -moved the functions associated with the STRLIST structure to gamp.h to
+    make the main source more readable.
+
+   v0.0.7:
+   -minor cleanup. still confused whats up with the browser segfaulting
+    after you add to the playlist.
+   -some big changes to program control. made way to change between the
+    player and the playlist editor.
+   -started working on the player.
+
+   v0.0.6:
+   -further cleanup. fixed some memory leaks.
+
+   v0.0.5:
+   -bunch of restructuring to clean things up. added new add, delete,
+    isdir, isfile, swap functions.
+   -fixed filename filter.
+   -command line directory seems to be working now.

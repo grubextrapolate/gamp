@@ -87,7 +87,7 @@ void sort_list(STRLIST *list) {
 
 void randomize_list(STRLIST *list) {
 
-    int i, num_items, j, k;
+    int i, num_items, j;
 
     char **tmpfiles = (char **)malloc(sizeof(char *) * list->max);
     char **tmpdirs = (char **)malloc(sizeof(char *) * list->max);
@@ -95,28 +95,23 @@ void randomize_list(STRLIST *list) {
     num_items = list->cur;
     i = 0;
 
-    while (num_items > 0) {
+    for (i = 0; list->cur > 0; i++) {
 
-        /* number from 0 to num_items-1 (according to man rand) */
-        j = (int) (num_items*rand());
+        /* number from 0 to num_items-1 */
+/*        j = (int) (num_items*rand()); */
+        j = (list->cur - 1);
 
-        tmpfiles[i] = list->files[j];  /* move random item to */
-        tmpdirs[i] = list->dirs[j];    /* temp list.          */
+        tmpfiles[i] = strdup(list->files[j]);  /* move random item to */
+        tmpdirs[i] = strdup(list->dirs[j]);    /* temp list.          */
+        delete(list, j);
 
-        for (k = j; k < num_items - 1; k++) {  /* move rest of items up */
-            list->dirs[k] = list->dirs[k+1];   /* in list to "delete"   */
-            list->files[k] = list->files[k+1]; /* the random item.      */
-        }
-
-        i++; /* increment the counter of our temp list */
-        num_items--; /* decrement the number of items in the old list */
     }
 
     free(list->files);
     free(list->dirs);
     list->files = tmpfiles;
     list->dirs = tmpdirs;
-
+    list->cur = num_items;
 }
 
 void free_list(STRLIST *list) {

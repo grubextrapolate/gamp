@@ -1,0 +1,10 @@
+FEATURES:
+
+   -it plays!
+   -prev/next/stop/pause work.
+   -playlist seems to work ok for adding and removing.
+   -directory browsing works.
+   -directory list is sorted.
+   -file filtering for *.mp3 (case insensitive).
+   -passing start directory on command line seems to be working.
+

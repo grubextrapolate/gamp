@@ -1,13 +1,6 @@
 #include <math.h>
 #include <curses.h>
 
-#include "audio.h"
-#include "formats.h"
-#include "getbits.h"
-#include "huffman.h"
-#include "layer3.h"
-#include "transform.h"
-
 void draw_func(WINDOW *win, int height, int width) {
     int i,j;
     char star[3] = "**";

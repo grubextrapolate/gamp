@@ -63,7 +63,7 @@ extern int nch;
 extern int t_sampling_frequency[2][3];
 
 extern int NUM_BANDS;
-extern int bar_heights[22];
+extern int bar_heights[32];
 
 extern int SHOW_HEADER,SHOW_HEADER_DETAIL;
 extern int SHOW_SIDE_INFO,SHOW_SIDE_INFO_DETAIL;
