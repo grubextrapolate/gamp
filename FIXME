@@ -1,4 +1,6 @@
 FIX ME:
 
+   -put delay in spectrum analyzer. presently displays frame info as it is
+    buffered and NOT as it is displayed.
    -playlist randomizer doesnt work.
    -ffwd and rew not yet functional.

@@ -1,4 +1,4 @@
-/* gamp.c v0.1.9
+/* gamp.c v0.1.10
    by grub <grub@toast.net> and borys <borys@bill3.ncats.net>
    based on amp by Tomislav Uzelac <tuzelac@rasip.fer.hr>
 
@@ -544,11 +544,11 @@ int play_playlist(int argc, char *argv[]) {
                     wnoutrefresh(mainwin);
                     wnoutrefresh(helpwin);
                     doupdate();
-                }
+                    nodelay(titlewin, FALSE);
+                    nodelay(mainwin, FALSE);
+                    nodelay(helpwin, FALSE);
 
-                nodelay(titlewin, FALSE);
-                nodelay(mainwin, FALSE);
-                nodelay(helpwin, FALSE);
+                }
 
                 cnt = 0;
                 last_loop = FALSE;

@@ -27,8 +27,13 @@ void sanalyzer_render_freq(WINDOW *win, int height, int width) {
     scale = height / log(578);
     for(i = 0; i < 18; i++) {
         for(c = 0, y = 0; c < 32; c++) {
-            if(stereo_samples[i][c][1] > y)
-                y = stereo_samples[i][c][1];
+            if (nch == 2) {
+               if(stereo_samples[i][c][0] > y)
+                   y = stereo_samples[i][c][0];
+            } else {
+               if(mono_samples[i][c] > y)
+                   y = mono_samples[i][c];
+            }
         }
         y >>= 7;
         if(y != 0) {

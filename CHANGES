@@ -1,5 +1,8 @@
 CHANGES:
 
+   v0.1.10:
+   -minor bugfixes in player.
+
    v0.1.9:
    -spectrum analyzer works.
    -minor cosmetic changes.
