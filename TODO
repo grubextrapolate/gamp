@@ -1,9 +1,8 @@
-gamp TODO (as of 1.0.2):
+gamp TODO (as of 1.1.0):
 
-   -color?
+   -color (b/w optional, user specified color scheme?)
+   -customizable command keys?
    -support for oog vorbis files
    -support for streaming mp3s
-   -extended playlist functionality, including selecting multiple files,
-    cropping, multi-file add/remove/replace
    -backgrounding/foregrounding
    -any other interesting items i (or you) can think of

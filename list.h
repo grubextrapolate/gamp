@@ -25,4 +25,19 @@ extern void initList(ITEMLIST **);
 extern void freeItem(ITEM *);
 extern ITEM *seekItemByPath(ITEM *, ITEMLIST *);
 
+extern void cropList(ITEMLIST **);
+extern void markAll(ITEMLIST *);
+extern void unmarkAll(ITEMLIST *);
+extern void markInvert(ITEMLIST *);
+extern void deleteMarked(ITEMLIST **);
+extern void reverseList(ITEMLIST *);
+extern void moveItemToHead(ITEM *, ITEMLIST **);
+extern void moveItemToTail(ITEM *, ITEMLIST **);
+extern void moveMarkedToHead(ITEMLIST **);
+extern void moveMarkedToTail(ITEMLIST **);
+extern void replaceItem(ITEM *, ITEMLIST **, ITEM *);
+extern void addMarked(ITEMLIST *, ITEMLIST **);
+extern void addMarkedRecursive(ITEMLIST *, ITEMLIST **);
+extern ITEM *seekBackItem(ITEM *, int *);
+
 #endif /* LIST_H */

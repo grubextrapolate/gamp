@@ -26,8 +26,8 @@
 /* version
 */
 #define         MAJOR           1
-#define         MINOR           0
-#define         PATCH           1
+#define         MINOR           1
+#define         PATCH           0
 
 #define MAX(a,b)  ((a) > (b) ? (a) : (b))
 #define MIN(a,b)  ((a) < (b) ? (a) : (b))
@@ -58,7 +58,7 @@ extern void initDirlist(char *, ITEMLIST **);
 extern void finishPlayer();
 extern void initPlayer();
 extern int playPlaylist();
-extern void fillwin(WINDOW *, ITEM *, ITEMLIST *, int, ITEM *);
+extern void fillwin(WINDOW *, ITEM *, ITEMLIST *, int, ITEM *, ITEM *, int);
 extern void finishEditor();
 extern void initEditor();
 extern int editPlaylist();

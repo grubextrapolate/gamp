@@ -1,5 +1,5 @@
 /*
- * gamp.c v1.0.2
+ * gamp.c v1.1.0
  * by grub <grub@extrapolation.net>
  *
  * ncurses based command line mp3 player. has a directory browser
@@ -341,9 +341,12 @@ int playPlaylist() {
 
 /*
  * writes num entries from list begining with first into win. will show
- * sel item in reverse text.
+ * sel item with a "-" at each end and in reverse if the current window 
+ * is 'active'. will put a ">" at the left hand end of the song
+ * indicated by play.
  */
-void fillwin(WINDOW *win, ITEM *first, ITEMLIST *list, int num, ITEM *sel) {
+void fillwin(WINDOW *win, ITEM *first, ITEMLIST *list, int num, 
+             ITEM *sel, ITEM *play, int active) {
 
    ITEM *cur = NULL;
    int i = 0;
@@ -354,11 +357,19 @@ void fillwin(WINDOW *win, ITEM *first, ITEMLIST *list, int num, ITEM *sel) {
    cur = first;
    while ((i <= num) && (cur != NULL)) {
 
-      if (cur == sel) wattrset(win, A_REVERSE);
-      tmpstr = strpad(cur, win->_maxx - 1);
-      mvwaddstr(win, i+1, 1, tmpstr);
+      if (cur == sel) {
+         mvwaddstr(win, i+1, 1, "-");
+         if (active) wattrset(win, A_REVERSE);
+      }
+      if (cur->marked) mvwaddstr(win, i+1, 1, "*");
+      if (cur == play) mvwaddstr(win, i+1, 1, ">");
+      tmpstr = strpad(cur, win->_maxx - 3);
+      mvwaddstr(win, i+1, 2, tmpstr);
       free(tmpstr);
-      if (cur == sel) wattrset(win, A_NORMAL);
+      if (cur == sel) {
+         if (active) wattrset(win, A_NORMAL);
+         mvwaddstr(win, i+1, win->_maxx - 1, "-");
+      }
       cur = cur->next;
       i++;
    }
@@ -467,8 +478,10 @@ int editPlaylist() {
    }
 
    /* draw boxes in windows and fill them with something */
-   fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2, dw_cur);
-   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2, NULL);
+   fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2, dw_cur,
+           NULL, TRUE);
+   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2, NULL,
+           curSong, FALSE);
 
    if (helpwin != NULL) {
       toggleHelpWin();
@@ -482,7 +495,17 @@ int editPlaylist() {
       ch = getch();
       switch(ch) {
 
-         case 'p': /* start playing! */
+         case 'P': /* start playing! */
+            if (!(curState & playState)) {
+               if (curSong != NULL) playerPlay(curSong);
+               else {
+                  if (playlist != NULL) curSong = playlist->head;
+                  playerPlay(curSong);
+               }
+            }
+            break;
+
+         case 'p': /* switch to player */
          case '>':
          case '<':
             func = PLAYER;
@@ -516,12 +539,26 @@ int editPlaylist() {
 
                   if (win == 0) {
                      fillwin(listwin, lw_first, playlist,
-                             listwin->_maxy - 2, NULL);
+                             listwin->_maxy - 2, lw_cur, curSong, FALSE);
                   } else {
                      fillwin(listwin, lw_first, playlist,
-                             listwin->_maxy - 2, lw_cur);
+                             listwin->_maxy - 2, lw_cur, curSong, TRUE);
                   }
                }
+            }
+            break;
+
+         case 'm': /* mark/unmark current item */
+            if (win == 0) {
+               if (strcmp(dw_cur->name, "..") != 0) {
+                  dw_cur->marked = ! dw_cur->marked;
+                  fillwin(dirwin, dw_first, dirlist,
+                          dirwin->_maxy - 2, dw_cur, NULL, TRUE);
+               }
+            } else {
+               lw_cur->marked = ! lw_cur->marked;
+               fillwin(listwin, lw_first, playlist,
+                       listwin->_maxy - 2, lw_cur, curSong, TRUE);
             }
             break;
 
@@ -548,7 +585,7 @@ int editPlaylist() {
             break;
 
          case 'a': /* add all in current directory */
-            if ((dirlist != NULL) && (win == 0)) {
+            if (dirlist != NULL) {
                itm = dirlist->head;
                while (itm != NULL) {
                   if (itm->isfile) addItem(copyItem(itm), &playlist);
@@ -558,14 +595,18 @@ int editPlaylist() {
                   if (lw_first == NULL) lw_first = playlist->head;
                   if (lw_cur == NULL) lw_cur = playlist->head;
                }
-               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                       NULL);
-
+               if (win == 0) {
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy -
+                          2, lw_cur, curSong, FALSE);
+               } else {
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy -
+                          2, lw_cur, curSong, TRUE);
+               }
             }
             break;
 
          case 'A': /* add all recursively */
-            if ((dirlist != NULL) && (win == 0)) {
+            if (dirlist != NULL) {
                getcwd(cwd, sizeof(cwd));
                addRecursive(dirlist, &playlist);
                if (playlist != NULL) {
@@ -573,8 +614,13 @@ int editPlaylist() {
                   if (lw_cur == NULL) lw_cur = playlist->head;
                }
                chdir(cwd);
-               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2, 
-                       NULL);
+               if (win == 0) {
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy -
+                          2, lw_cur, curSong, FALSE);
+               } else {
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy -
+                          2, lw_cur, curSong, TRUE);
+               }
             }
             break;
 
@@ -598,7 +644,7 @@ int editPlaylist() {
                   }
 
                   fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
-                          dw_cur);
+                          dw_cur, NULL, TRUE);
                }
             } else {
                if ((playlist != NULL) && (lw_cur != playlist->tail)) {
@@ -619,7 +665,7 @@ int editPlaylist() {
                   }
 
                   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                          lw_cur);
+                          lw_cur, curSong, TRUE);
                }
             }
             break;
@@ -645,7 +691,7 @@ int editPlaylist() {
                   }
 
                   fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
-                          dw_cur);
+                          dw_cur, NULL, TRUE);
                }
             } else {
                if ((playlist != NULL) && (lw_cur != playlist->head)) {
@@ -667,7 +713,7 @@ int editPlaylist() {
                   }
 
                   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                          lw_cur);
+                          lw_cur, curSong, TRUE);
                }
             }
             break;
@@ -683,7 +729,7 @@ int editPlaylist() {
                      dw_cur = dw_cur->prev;
                   }
                   fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
-                          dw_cur);
+                          dw_cur, NULL, TRUE);
                }
             } else {
                if ((lw_cur != NULL) && (lw_cur->prev != NULL)) {
@@ -695,7 +741,7 @@ int editPlaylist() {
                      lw_cur = lw_cur->prev;
                   }
                   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                          lw_cur);
+                          lw_cur, curSong, TRUE);
                }
             }
             break;
@@ -711,7 +757,7 @@ int editPlaylist() {
                      dw_cur = dw_cur->next;
                   }
                   fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
-                          dw_cur);
+                          dw_cur, NULL, TRUE);
                }
             } else {
                if ((lw_cur != NULL) && (lw_cur->next != NULL)) {
@@ -723,7 +769,7 @@ int editPlaylist() {
                      lw_cur = lw_cur->next;
                   }
                   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                          lw_cur);
+                          lw_cur, curSong, TRUE);
                }
             }
             break;
@@ -759,7 +805,7 @@ int editPlaylist() {
                   }
                }
                fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
-                       dw_cur);
+                       dw_cur, NULL, TRUE);
 
             } else if ((win == 1) && (lw_cur != NULL)) {
                /* if we are currently playing then we need to adjust
@@ -785,7 +831,7 @@ int editPlaylist() {
 
                deleteItem(itm, &playlist);
                fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                       lw_cur);
+                       lw_cur, curSong, TRUE);
             }
             break;
 
@@ -796,7 +842,7 @@ int editPlaylist() {
                   if (lw_first == NULL) lw_first = playlist->head;
                   if (lw_cur == NULL) lw_cur = playlist->head;
                   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                          NULL);
+                          lw_cur, curSong, FALSE);
                } else {
                   addItem(newItem(dw_first->path, NULL), &treelist);
                   treelist->tail->length = dw_pos;
@@ -809,11 +855,14 @@ int editPlaylist() {
                      dw_cur = dirlist->head;
                   }
                   fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
-                          dw_cur);
+                          dw_cur, NULL, TRUE);
                }
             } else {
-               if (lw_cur != NULL)
+               if (lw_cur != NULL) {
                   playerPlay(lw_cur);
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                          lw_cur, curSong, TRUE);
+               }
             }
             break;
 
@@ -822,17 +871,17 @@ int editPlaylist() {
                win = 0;
                pos = &dw_pos;
                fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                       NULL);
+                       lw_cur, curSong, FALSE);
                fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
-                       dw_cur);
+                       dw_cur, NULL, TRUE);
             } else {
                if (lw_first != NULL) {
                   win = 1;
                   pos = &lw_pos;
                   fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
-                          NULL);
+                          dw_cur, NULL, FALSE);
                   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                          lw_cur);
+                          lw_cur, curSong, TRUE);
                }
             }
             break;
@@ -840,35 +889,31 @@ int editPlaylist() {
          case 'r': /* r to randomize the playlist */
             playlist = randomizeList(&playlist);
             if (playlist != NULL) {
-               lw_first = playlist->head;
-               lw_cur = playlist->head;
+               lw_first = seekBackItem(lw_cur, &lw_pos);
             }
-            lw_pos = 0;
             if (win == 1)
                fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                       lw_cur);
+                       lw_cur, curSong, TRUE);
             else
                fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                       NULL);
+                       lw_cur, curSong, FALSE);
             break;
 
          case 'o': /* sort (order) the playlist */
             sortList(playlist);
             if (playlist != NULL) {
-               lw_first = playlist->head;
-               lw_cur = playlist->head;
+               lw_first = seekBackItem(lw_cur, &lw_pos);
             }
-            lw_pos = 0;
             if (win == 1)
                fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                       lw_cur);
+                       lw_cur, curSong, TRUE);
             else
                fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                       NULL);
+                       lw_cur, curSong, FALSE);
             break;
 
          case 'u': /* move song up in playlist */
-            if (win ==1) {
+            if (win == 1) {
                if ((playlist != NULL) && (lw_cur != NULL) &&
                    (lw_cur->prev != NULL)) {
                   swapItems(playlist, lw_cur->prev, lw_cur);
@@ -877,13 +922,13 @@ int editPlaylist() {
                   if (lw_pos == 0) lw_first = lw_cur;
 
                   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                          lw_cur);
+                          lw_cur, curSong, TRUE);
                }
             }
             break;
 
          case 'd': /* move song down in playlist */
-            if (win ==1) {
+            if (win == 1) {
                if ((playlist != NULL) && (lw_cur != NULL) &&
                    (lw_cur->next != NULL)) {
                   swapItems(playlist, lw_cur, lw_cur->next);
@@ -893,8 +938,175 @@ int editPlaylist() {
                   else lw_first = lw_first->next;
 
                   fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                          lw_cur);
+                          lw_cur, curSong, TRUE);
                }
+            }
+            break;
+
+         case 'C': /* crop to marked */
+            if (lw_cur->marked) {
+               cropList(&playlist);
+               lw_first = seekBackItem(lw_cur, &lw_pos);
+            } else {
+               cropList(&playlist);
+               lw_pos = 0;
+               lw_first = playlist->head;
+               lw_cur = lw_first;
+            }
+            if (win == 0) {
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, FALSE);
+            } else {
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
+            }
+            break;
+
+         case 'M': /* mark all */
+            if (win == 0) {
+               markAll(dirlist);
+               fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                       dw_cur, NULL, TRUE);
+            } else {
+               markAll(playlist);
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
+            }
+            break;
+
+         case 'U': /* unmark all */
+            if (win == 0) {
+               unmarkAll(dirlist);
+               fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                       dw_cur, NULL, TRUE);
+            } else {
+               unmarkAll(playlist);
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
+            }
+            break;
+
+         case 'D': /* delete marked */
+            if (lw_cur->marked) {
+               deleteMarked(&playlist);
+               lw_first = seekBackItem(lw_cur, &lw_pos);
+            } else {
+               deleteMarked(&playlist);
+               lw_pos = 0;
+               lw_first = playlist->head;
+               lw_cur = lw_first;
+            }
+            if (win == 0) {
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, FALSE);
+            } else {
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
+            }
+            break;
+
+         case 'z': /* add marked */
+            addMarked(dirlist, &playlist);
+            if ((lw_cur == NULL) && (playlist != NULL)) {
+               lw_cur = playlist->head;
+               lw_first = lw_cur;
+            }
+            if (win == 0) {
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, FALSE);
+            } else {
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
+            }
+            break;
+
+         case 'Z': /* add marked recursive */
+            addMarkedRecursive(dirlist, &playlist);
+            if ((lw_cur == NULL) && (playlist != NULL)) {
+               lw_cur = playlist->head;
+               lw_first = lw_cur;
+            }
+            if (win == 0) {
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, FALSE);
+            } else {
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
+            }
+            break;
+
+         case 'e': /* replace */
+            if ((lw_cur != NULL) && (isfile(dw_cur))) {
+               itm = lw_cur->prev;
+               replaceItem(lw_cur, &playlist, dw_cur);
+               lw_cur = itm->next;
+               if (win == 0) {
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy -
+                          2, lw_cur, curSong, FALSE);
+               } else {
+                  fillwin(listwin, lw_first, playlist, listwin->_maxy -
+                          2, lw_cur, curSong, TRUE);
+               }
+            }
+            break;
+
+         case 'I': /* invert selection */
+            if (win == 0) {
+               markInvert(dirlist);
+               fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
+                       dw_cur, NULL, TRUE);
+            } else {
+               markInvert(playlist);
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
+            }
+            break;
+
+         case 'v': /* reverse list */
+            reverseList(playlist);
+            lw_first = seekBackItem(lw_cur, &lw_pos);
+            if (win == 0) {
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, FALSE);
+            } else {
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
+            }
+            break;
+
+         case 't': /* move song to top of playlist */
+            if ((win == 1) && (playlist != NULL)) {
+               moveItemToHead(lw_cur, &playlist);
+               lw_first = seekBackItem(lw_cur, &lw_pos);
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
+            }
+            break;
+
+         case 'b': /* move song to bottom of playlist */
+            if ((win == 1) && (playlist != NULL)) {
+               moveItemToTail(lw_cur, &playlist);
+               lw_first = seekBackItem(lw_cur, &lw_pos);
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
+            }
+            break;
+
+         case 'T': /* move marked songs to top of playlist */
+            if (win == 1) {
+               moveMarkedToHead(&playlist);
+               lw_first = seekBackItem(lw_cur, &lw_pos);
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
+            }
+            break;
+
+         case 'B': /* move marked songs to bottom of playlist */
+            if (win == 1) {
+               moveMarkedToTail(&playlist);
+               lw_first = seekBackItem(lw_cur, &lw_pos);
+               fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
+                       lw_cur, curSong, TRUE);
             }
             break;
 
@@ -903,14 +1115,14 @@ int editPlaylist() {
             initEditor();
             if (win == 0) {
                fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
-                       dw_cur);
+                       dw_cur, NULL, TRUE);
                fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                       NULL);
+                       lw_cur, curSong, FALSE);
             } else {
                fillwin(listwin, lw_first, playlist, listwin->_maxy - 2,
-                       lw_first);
+                       lw_first, curSong, TRUE);
                fillwin(dirwin, dw_first, dirlist, dirwin->_maxy - 2,
-                       NULL);
+                       lw_cur, NULL, FALSE);
             }
             if (helpwin != NULL) {
                toggleHelpWin();
@@ -1542,14 +1754,14 @@ void updateMiniWin(ITEM *mw_first) {
          if (mw_first->prev != NULL) {
             if (mw_first->prev->prev != NULL) {
                fillwin(miniwin, mw_first->prev->prev, playlist,
-                       miniwin->_maxy - 2, curSong);
+                       miniwin->_maxy - 2, curSong, NULL, TRUE);
             } else {
                fillwin(miniwin, mw_first->prev, playlist,
-                       miniwin->_maxy - 2, curSong);
+                       miniwin->_maxy - 2, curSong, NULL, TRUE);
             }
          } else {
             fillwin(miniwin, mw_first, playlist, miniwin->_maxy - 2,
-                    curSong);
+                    curSong, NULL, TRUE);
          }
          wnoutrefresh(miniwin);
          doupdate();

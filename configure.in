@@ -61,9 +61,6 @@ case "$OS_TYPE" in
     if test "$ARCH_TYPE" = "i486" ; then
       CFLAGS_ARCH="-m486"
     fi
-    if test "$ARCH_TYPE" = "i586" ; then
-      CFLAGS_ARCH="-i586 -pipe"
-    fi
     if test "$OS_TYPE" = "FreeBSD" ; then
       OS_TYPE="BSD"
     fi

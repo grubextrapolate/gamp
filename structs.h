@@ -12,6 +12,7 @@ typedef struct ITEM {
    int length;
    ID3_tag *id3;
    int isfile;
+   int marked;
    struct ITEM *next; /* next/prev for linked list */
    struct ITEM *prev;
 } ITEM;

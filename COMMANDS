@@ -32,6 +32,7 @@ l	switch to playlist
 in playlist editor:
 -------------------
 
+P	start playing playlist (while you continue to edit it!)
 p	goto player
 >	goto player
 <	goto player
@@ -57,6 +58,21 @@ r	randomize playlist
 o	sort (order) the playlist
 u	move song up in playlist
 d	move song down in playlist
+
+m	mark song/directory
+M	mark all
+U	unmark all
+I	invert marked
+D	delete marked
+C	crop to marked
+z	add marked
+Z	add marked recursively
+e	replace active song in playlist with current song
+v	reverse list
+t	move song to top of playlist
+b	move song to bottom of playlist
+T	move marked songs to top of playlist
+M	move marked songs to end of playlist
 
 from command line:
 ------------------

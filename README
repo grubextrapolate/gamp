@@ -1,4 +1,4 @@
-gamp ncurses MPEG audio decoder, version 1.0.2
+gamp ncurses MPEG audio decoder, version 1.1.0
 
 Russ Burdick <wburdick@cs.umn.edu> 1999-2001
 
@@ -26,6 +26,18 @@ much about bandwidth.
 
 2. Installation
 
+gamp requires that you have some sort of curses package present on your
+system, including a development package (if such exists). on linux
+systems you'll probably be looking for ncurses and ncurses-devel. on bsd
+i think you've got curses, but dont quote me on that. the Makefile will
+try to find the curses headers in a few standard locations, so if you
+try and build and it dies saying something like 'cant find curses.h',
+you're either missing the devel portion of curses for your system or
+you're using some strange installation i havent delt with and i'd like
+to hear about it. gamp also requires pthreads (or c_r on bsd), but
+that's a pretty standard part of any installation so you shouldnt have
+any trouble there.
+
 In order to use gamp you also need to have a compatible backend player.
 Any player which can act as a backend for the Sajber Jukebox will work as
 i've used the same control mechanisms. The sajber jukebox itself requires
@@ -48,7 +60,7 @@ sajber backend.
  decompressed both mpg123 and gamp in the same place you should be able to
  do the following:
 
-	cp gamp-1.0.2/controldata.h gamp-1.0.2/audio.h mpg123-0.59r/jukebox/
+	cp gamp-1.1.0/controldata.h gamp-1.1.0/audio.h mpg123-0.59r/jukebox/
 
 now you can enter the mpg123 directory
 

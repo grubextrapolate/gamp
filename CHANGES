@@ -1,6 +1,16 @@
 CHANGES:
 
-   v1.02:
+   v1.1.0
+   -extended playlist functionality to multi-file add/remove, cropping
+    playlist, moving to head and tail of playlist, replacing song,
+    reversing playlist.
+   -fixed incorrect version reporting in v1.0.2
+   -fixed crash when loading non-existent playlist file
+   -slightly improved layout in playlist editor
+   -improved list position in windows after various operations to keep
+    the current song and its position constant whenever possible
+
+   v1.0.2:
    -patch to have gamp show current song name in the title bar of an
     xterm when gamp is running from an xterm. thanks to Bert Crowder
     <bertoid@aracnet.com> for the patch.

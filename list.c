@@ -36,6 +36,7 @@ ITEM *copyItem(ITEM *orig) {
       new->size = orig->size;
       new->length = orig->length;
       new->isfile = orig->isfile;
+      new->marked = orig->marked;
 
       if (orig->id3 != NULL) {
          new->id3 = (ID3_tag *)malloc(sizeof(ID3_tag));
@@ -60,6 +61,7 @@ ITEM *newItem(char *path, char *name) {
    itm->size = -1;
    itm->length = -1;
    itm->id3 = NULL;
+   itm->marked = 0;
 
    if (name == NULL) { /* directory */
       itm->isfile = FALSE;
@@ -503,5 +505,305 @@ ITEM *seekItemByPath(ITEM *itm, ITEMLIST *list) {
          ret = ret->next;
    }
       
+   return(ret);
+}
+
+/*
+ * deletes all unmarked items from the list
+ */
+void cropList(ITEMLIST **list) {
+
+   ITEM *cur = NULL;
+   ITEM *ptr = NULL;
+
+   if (*list != NULL) {
+      cur = (*list)->head;
+      while (cur != NULL) {
+         ptr = cur->next;
+         if (! cur->marked) deleteItem(cur, list);
+         cur = ptr;
+      }
+   }
+}
+
+/*
+ * marks all items on the list
+ */
+void markAll(ITEMLIST *list) {
+
+   ITEM *cur = NULL;
+
+   if (list != NULL) {
+      cur = list->head;
+      while (cur != NULL) {
+         if (strcmp(cur->name, "..") != 0) {
+            cur->marked = TRUE;
+         }
+         cur = cur->next;
+      }
+   }
+}
+
+/*
+ * unmarks all items on the list
+ */
+void unmarkAll(ITEMLIST *list) {
+
+   ITEM *cur = NULL;
+
+   if (list != NULL) {
+      cur = list->head;
+      while (cur != NULL) {
+         cur->marked = FALSE;
+         cur = cur->next;
+      }
+   }
+}
+
+/*
+ * inverts the mark on each item in the list
+ */
+void markInvert(ITEMLIST *list) {
+
+   ITEM *cur = NULL;
+
+   if (list != NULL) {
+      cur = list->head;
+      while (cur != NULL) {
+         if (strcmp(cur->name, "..") != 0) {
+            cur->marked = ! cur->marked;
+         }
+         cur = cur->next;
+      }
+   }
+}
+
+/*
+ * deletes all marked items from the list. as this is simply the
+ * opposite of a crop we invert the selections, crop the list to the
+ * previously unselected items, then invert them back to being unmarked.
+ */
+void deleteMarked(ITEMLIST **list) {
+
+   if (*list != NULL) {
+      markInvert(*list);
+      cropList(list);
+      markInvert(*list);
+   }
+}
+
+/*
+ * reverses the order of the list
+ */
+void reverseList(ITEMLIST *list) {
+
+   ITEM *top = NULL;
+   ITEM *bot = NULL;
+   ITEM *tmp = NULL;
+
+   if (list != NULL) {
+      top = list->head;
+      bot = list->tail;
+      while (top != NULL) {
+         if (top == bot) { /* center of odd-sized list, so done. */
+            top = NULL;
+         } else if (top->next == bot) { /* center of even-sized list. */
+            swapItems(list, top, bot);  /* swap and then we're done.  */
+            top = NULL;
+         } else {
+            swapItems(list, top, bot); /* else swap top and bottom */
+            tmp = bot->next;
+            bot = top->prev;
+            top = tmp;
+         }
+      }
+   }
+}
+
+/*
+ * moves the specified item to the head of the list
+ */
+void moveItemToHead(ITEM *item, ITEMLIST **list) {
+
+   if ((item != NULL) && (*list != NULL)) {
+      if (((*list)->head != (*list)->tail) &&
+          ((*list)->head != NULL)) { /* more than one item */
+         removeItem(item, list);
+         item->next = (*list)->head;
+         (*list)->head->prev = item;
+         (*list)->head = item;
+      }
+   }
+}
+
+/*
+ * moves the specified item to the tail of the list
+ */
+void moveItemToTail(ITEM *item, ITEMLIST **list) {
+
+   if ((item != NULL) && (*list != NULL)) {
+      if (((*list)->head != (*list)->tail) &&
+          ((*list)->head != NULL)) { /* more than one item */
+         removeItem(item, list);
+         item->prev = (*list)->tail;
+         (*list)->tail->next = item;
+         (*list)->tail = item;
+      }
+   }
+}
+
+/*
+ * moves marked items to the head of the list.
+ */
+void moveMarkedToHead(ITEMLIST **list) {
+
+   ITEM *cur = NULL;
+   ITEM *ptr = NULL;
+
+   if (*list != NULL) {
+      cur = (*list)->head;
+      while (cur != NULL) {
+         ptr = cur->next;
+         if (cur->marked) moveItemToHead(cur, list);
+         cur = ptr;
+      }
+   }
+}
+
+/*
+ * moves marked items to the tail of the list
+ */
+void moveMarkedToTail(ITEMLIST **list) {
+
+   ITEM *cur = NULL;
+   ITEM *ptr = NULL;
+   ITEM *fmark = NULL;
+
+   if (*list != NULL) {
+      cur = (*list)->head;
+      while (cur != NULL) {
+         ptr = cur->next;
+         if (cur->marked) {
+            if (fmark == NULL) { /* set this as first marked item */
+               fmark = cur;
+               moveItemToTail(cur, list);
+            } else if (cur == fmark) { /* if we've hit fmark we're done */
+               ptr = NULL;
+            } else { /* otherwise move to tail */
+               moveItemToTail(cur, list);
+            }
+         }
+         cur = ptr;
+      }
+   }
+}
+
+/*
+ * replaces the specified item in list1 with a copy of item2
+ */
+void replaceItem(ITEM *item1, ITEMLIST **list1, 
+                 ITEM *item2) {
+
+   ITEM *prev1 = NULL;
+   ITEM *next1 = NULL;
+   ITEM *ptr = NULL;
+
+   if ((item1 != NULL) && (item2 != NULL) && (*list1 != NULL)) {
+
+      ptr = copyItem(item2);
+      ptr->next = item1->next;
+      ptr->prev = item1->prev;
+
+      prev1 = item1->prev;
+      next1 = item1->next;
+
+      if ((*list1)->head == item1) {
+         (*list1)->head = ptr;
+      } else {
+         prev1->next = ptr;
+      }
+
+      if ((*list1)->tail == item1) {
+         (*list1)->tail = ptr;
+      } else {
+         next1->prev = ptr;
+      }
+
+      freeItem(item1);
+   }
+}
+
+/*
+ * adds all marked items from src list to dest list. ignores selected
+ * directories.
+ */
+void addMarked(ITEMLIST *src, ITEMLIST **dest) {
+
+   ITEM *cur = NULL;
+   ITEM *ptr = NULL;
+
+   if (src != NULL) {
+      cur = src->head;
+      while (cur != NULL) {
+         if ((isfile(cur)) && (cur->marked)) {
+            ptr = copyItem(cur);
+            ptr->marked = FALSE;
+            addItem(ptr, dest);
+         }
+         cur = cur->next;
+      }
+   }
+}
+
+/*
+ * adds all marked items from src list into dest list recursively. adds
+ * songs and recursively adds directories. copies marked items into a
+ * new list and then uses the addRecursive function on this list.
+ */
+void addMarkedRecursive(ITEMLIST *src, ITEMLIST **dest) {
+
+   ITEMLIST *marklist = NULL;
+   ITEM *cur = NULL;
+   ITEM *ptr = NULL;
+
+   if (src != NULL) {
+
+      cur = src->head;
+      while (cur != NULL) {
+         if (cur->marked) {
+            ptr = copyItem(cur);
+            ptr->marked = FALSE;
+            addItem(ptr, &marklist);
+         }
+         cur = cur->next;
+      }
+      addRecursive(marklist, dest);
+      freeList(&marklist);
+   }
+}
+
+/*
+ * given a selected song and its position in the current window this
+ * will work back to find out which song should be the first in the
+ * window. used to maintain position of a selected song after the list
+ * changes. if it hits the top of the list before moving to the position
+ * it wanted it will alter pos to indicate where teh selected song
+ * really is in the window.
+ */
+ITEM *seekBackItem(ITEM *cur, int *pos) {
+
+   ITEM *ret = NULL;
+   int i = 0;
+
+   if (cur != NULL) {
+      ret = cur;
+      while ((ret->prev != NULL) && (i < *pos)) {
+         ret = ret->prev;
+         i++;
+      }
+      if (i < *pos) { /* didnt get as far up as we wanted */
+         *pos = i;
+      }
+   }
    return(ret);
 }
